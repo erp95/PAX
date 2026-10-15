@@ -665,7 +665,7 @@ async function attachInner() {
   reconnectTry = 0;
   const pr = c => Object.entries(c.properties || {}).filter(([, v]) => v).map(([k]) => k).join(',') || '?';
   log('', `Diagnose: Schreiben [${pr(chWrite)}] · Lesen [${pr(chRead)}] · Melden [${pr(chNotify)}]`);
-  Object.assign(diag, { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null });
+  Object.assign(diag, { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, samples: [], echo: null, lastErr: '' });
   clearTimeout(diag.timer);
   diag.timer = setTimeout(diagnose, 6000);
   setConn('on');
@@ -788,7 +788,8 @@ async function drainRead() {
       diag.reads++;
       const msg = PaxCore.parse(plain);
       if (KNOWN.has(plain[0])) diag.known++; else diag.unknown++;
-      if ([1, 3, 31, 32].includes(plain[0]) && plain.length >= 16 && plain.slice(4).every(b => b === 0)) diag.core++;
+      if (plausible(plain)) diag.core++;
+      diag.samples.push(PaxCore.bytesToHex(plain).slice(0, 12));
       handle(msg, plain);
     } catch (e) { log('er', `Lesen: ${e.message || e}`); }
   }
@@ -813,8 +814,22 @@ async function writeRobust(pkt) {
   }
 }
 const KNOWN = new Set([1,2,3,4,5,6,7,8,9,10,13,15,17,18,19,20,21,23,24,25,27,28,30,31,32,36,40,41,42,49,50,52,53,54]);
-const diag = { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, timer: null, lastErr: '', echo: null, echoWait: false };
-const ECHO_TYPES = new Set([19, 20, 21, 23]);   // only ever sent on request, never spontaneously
+const diag = { samples: [], notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, timer: null, lastErr: '', echo: null, echoWait: false };
+const ECHO_TYPES = new Set([19, 20, 21, 23]);
+// A packet decrypted with the right key carries a known type and a value in range. Random bytes almost never do.
+function plausible(p) {
+  if (p.length < 3) return false;
+  const u16 = p[1] | (p[2] << 8);
+  switch (p[0]) {
+    case 1: case 2: case 31: return u16 > 0 && u16 < 4000;
+    case 3: return p[1] <= 100;
+    case 32: return p[1] <= 6;
+    case 19: return p[1] <= 4;
+    case 21: case 23: return p[1] <= 128;
+    case 6: case 7: return p[1] <= 2;
+    default: return false;
+  }
+}   // only ever sent on request, never spontaneously
 
 // Proof that commands reach the device: ask for values it only sends when asked.
 async function echoTest() {
@@ -840,7 +855,8 @@ function writeHelpHTML() {
 function copyDiagnosis() {
   const head = [`PAX3-Diagnose ${new Date().toISOString()}`, `Browser: ${navigator.userAgent}`,
     `Gerät: ${device && device.name}`, `Meldungen ${diag.notifies}, gelesen ${diag.reads}, lesbar ${diag.core}, unlesbar ${diag.unknown}`,
-    `Schreibart: ${diag.writeMode}, Gegentest: ${diag.echo}, Fehler: ${diag.lastErr || '-'}`, '---'].join('\n');
+    `Schreibart: ${diag.writeMode}, Gegentest: ${diag.echo}, Fehler: ${diag.lastErr || '-'}`,
+    `Pakete: ${diag.samples.slice(0, 12).join(' ')}`, '---'].join('\n');
   const txt = head + '\n' + $('log').innerText;
   navigator.clipboard.writeText(txt).then(() => toast('Diagnose kopiert, einfach in den Chat einfügen'))
     .catch(() => { const r = document.createRange(); r.selectNodeContents($('log')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Markiert, mit Strg+C kopieren'); });
@@ -855,10 +871,11 @@ function diagnose() {
   let html = '';
   if (diag.notifies === 0) {
     html = `<div class="notice bad"><b>Der PAX sendet keine Daten.</b><span>Die Verbindung steht, aber es kommen keine Meldungen. Trennen, PAX einmal aus- und einschalten, schütteln bis blau, neu verbinden. Hilft das nicht: Chrome ganz schließen, im Terminal <code>sudo systemctl restart bluetooth</code>, erneut versuchen.</span></div>`;
-  } else if (diag.core === 0 && diag.reads > 0) {
-    html = `<div class="notice bad"><b>Die Seriennummer passt vermutlich nicht.</b><span>Der PAX antwortet, aber die Daten lassen sich mit „${serial}“ nicht entschlüsseln. Darum ignoriert er auch deine Befehle. Prüfe die 8 Zeichen auf der Rückseite genau, vor allem 0 und O, 1 und I, 5 und S, 8 und B.</span></div>`;
+  } else if (diag.reads >= 3 && diag.core === 0 && diag.unknown >= diag.reads / 2) {
+    html = `<div class="notice bad"><b>Die Seriennummer passt vermutlich nicht.</b><span>Der PAX antwortet, aber die Daten lassen sich mit „${serial}“ nicht entschlüsseln. Darum ignoriert er auch deine Befehle. Prüfe die 8 Zeichen auf der Rückseite genau, vor allem 0 und O, 1 und I, 5 und S, 8 und B.</span><div class="row"><button type="button" class="primary" id="copyDiag">Diagnose kopieren</button></div></div>`;
   }
   if (html) { showSupport(html); return; }
+  if (diag.core < diag.reads) log('', `Diagnose: ${diag.reads - diag.core} Pakete nicht zugeordnet, ${diag.core} plausibel. Seriennummer passt.`);
   echoTest().then(ok => {
     if (ok) { log('rx', 'Diagnose: Seriennummer stimmt, Lesen und Schreiben funktionieren'); showSupport(''); }
     else { log('er', `Diagnose: Gegentest ohne Antwort. Befehle erreichen den PAX nicht (Schreibart ${diag.writeMode || 'unbekannt'})`); showSupport(writeHelpHTML()); }
