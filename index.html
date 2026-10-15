@@ -192,6 +192,9 @@ ul.verify { list-style: none; margin: 0; padding: 12px 14px; border-radius: 10px
 ul.verify li { display: flex; gap: 10px; align-items: baseline; }
 ul.verify li i { font-style: normal; font-weight: 700; width: 1.2em; text-align: center; }
 ul.verify li.ok i { color: var(--ready); } ul.verify li.bad i { color: var(--bad); } ul.verify li.wait i { color: var(--muted); }
+.lockbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--warn); box-shadow: 0 6px 20px rgba(0,0,0,.12); font-size: 14px; }
+.lockbar > span { flex: 1 1 220px; min-width: 0; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 500; max-width: calc(100% - 32px); }
 .disabled-zone { opacity: .5; pointer-events: none; }
 </style>
@@ -266,6 +269,10 @@ ul.verify li.ok i { color: var(--ready); } ul.verify li.bad i { color: var(--bad
     </aside>
 
     <main class="col" id="controls">
+      <div class="lockbar" id="lockbar">
+        <span><b>Steuerung gesperrt.</b> <span id="lockbarTxt">Erst den PAX verbinden, dann lassen sich Profile, Temperatur und Modi einstellen.</span></span>
+        <button type="button" class="primary" id="lockbarBtn">Verbinden</button>
+      </div>
       <section class="panel" aria-labelledby="h-temp">
         <header><h2 id="h-temp">Temperatur</h2><span class="muted mono" id="tempRangeTxt">182–215 °C</span></header>
         <div class="tempset">
@@ -977,6 +984,10 @@ function setConn(mode) {
   $('btnDisconnect').disabled = mode === 'off';
   $('btnRefresh').disabled = mode !== 'on';
   $('controls').querySelectorAll('section:not(.guide):not(.stats-panel):not([aria-labelledby="h-log"])').forEach(s => s.classList.toggle('disabled-zone', mode !== 'on'));
+  $('lockbar').hidden = mode === 'on';
+  $('lockbarTxt').textContent = mode === 'off' ? 'Erst den PAX verbinden, dann lassen sich Profile, Temperatur und Modi einstellen.'
+    : mode === 'waiting' ? 'Warte auf den PAX. Einschalten und schütteln, bis er blau leuchtet.' : 'Verbindung wird aufgebaut …';
+  $('lockbarBtn').hidden = !(mode === 'off' || mode === 'waiting');
   if (mode !== 'on') { chWrite = null; Object.assign(st, { actual: null, target: null, heatingState: null }); render(); }
 }
 
@@ -1253,7 +1264,8 @@ function wire() {
   $('serial').value = store.get('serial', '');
   $('serial').addEventListener('input', e => e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
   $('serial').addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
-  $('btnConnect').onclick = connect; $('btnDisconnect').onclick = disconnect; $('btnRefresh').onclick = requestAll;
+  $('btnConnect').onclick = connect;
+  $('lockbarBtn').onclick = () => { if (!$('serial').value.trim()) { $('serial').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('serial').focus(); toast('Bitte zuerst die Seriennummer eingeben'); } else connect(); }; $('btnDisconnect').onclick = disconnect; $('btnRefresh').onclick = requestAll;
   $('unitC').onclick = () => { st.unit = 'C'; store.set('unit', 'C'); render(); renderStats(); renderProfiles(); };
   $('unitF').onclick = () => { st.unit = 'F'; store.set('unit', 'F'); render(); renderStats(); renderProfiles(); };
   $('tSlider').oninput = e => { st.sel = +e.target.value; render(); };
