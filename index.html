@@ -1,0 +1,1315 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PAX 3 Steuerzentrale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column on phones, a status rail plus control column on wide screens; the four-petal ring is the anchor. */
+:root {
+  --bg: #eef0f3;
+  --panel: #ffffff;
+  --sunk: #e3e6eb;
+  --line: #d0d5dd;
+  --fg: #1b1f26;
+  --muted: #5d6573;
+  --accent: #6b4fd8;      /* PAX heating purple */
+  --ready: #1f9d57;       /* PAX ready green */
+  --warn: #c7741a;
+  --bad: #c43d3d;
+  --p1: #34a853; --p2: #e2b714; --p3: #e8792b; --p4: #d63b3b; --p5: #3b7dd8;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121418; --panel: #1b1e24; --sunk: #23272f; --line: #313641; --fg: #e8eaee; --muted: #9aa2b1;
+  --accent: #9a83ff; --ready: #3ccf7f; --warn: #f0a04b; --bad: #ff6b6b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121418; --panel: #1b1e24; --sunk: #23272f; --line: #313641; --fg: #e8eaee; --muted: #9aa2b1;
+  --accent: #9a83ff; --ready: #3ccf7f; --warn: #f0a04b; --bad: #ff6b6b; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(32px, env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { font: 800 clamp(28px, 6vw, 44px)/1 var(--f-display); font-stretch: 78%; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+h1 small { display: block; font: 500 12px/1.4 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+h2 { font: 700 20px/1.2 var(--f-display); font-stretch: 85%; margin: 0; text-wrap: balance; }
+h3 { font: 600 13px/1.3 var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+.grid { display: grid; gap: 20px; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.rail { display: grid; gap: 20px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 860px) { .rail { position: static; } }
+.col { display: grid; gap: 20px; min-width: 0; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel > header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+/* Petal ring */
+.ring { display: grid; place-items: center; position: relative; }
+.ring svg { width: min(260px, 100%); height: auto; display: block; }
+.ring .readout { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.ring .now { font: 800 40px/1 var(--f-display); font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.ring .now sup { font-size: 14px; font-weight: 600; vertical-align: super; margin-left: 2px; }
+.ring .goal { font: 500 11px/1.4 var(--f-mono); color: var(--muted); }
+.petal { fill: var(--sunk); stroke: var(--line); stroke-width: 1.5; transition: fill .4s; }
+.petal.on { stroke: none; }
+.pulse .petal.on { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .pulse .petal.on { animation: none; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--sunk); font: 500 13px/1.4 var(--f-body); }
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.chip.ok i { background: var(--ready); } .chip.heat i { background: var(--accent); } .chip.warn i { background: var(--warn); } .chip.bad i { background: var(--bad); }
+
+dl.stats { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; }
+dl.stats dt { color: var(--muted); }
+dl.stats dd { margin: 0; text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--ready); width: 0; transition: width .4s; }
+
+button, .btn {
+  font: 600 14px/1 var(--f-body); border-radius: 10px; border: 1px solid var(--line); background: var(--sunk); color: var(--fg);
+  padding: 11px 14px; cursor: pointer; min-height: 42px;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row > .grow { flex: 1 1 160px; min-width: 0; }
+
+input[type="text"] {
+  font: 500 18px/1 var(--f-mono); letter-spacing: .12em; text-transform: uppercase; width: 100%;
+  padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+label.field { display: grid; gap: 6px; }
+label.field > span { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
+label.field > span b { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* Temperature control */
+.tempset { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+.tempset .big { font: 800 40px/1 var(--f-display); font-stretch: 75%; font-variant-numeric: tabular-nums; text-align: center; }
+.stepper { width: 46px; min-height: 46px; font-size: 22px; padding: 0; }
+.presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.preset { display: grid; gap: 4px; justify-items: start; text-align: left; padding: 10px; min-height: 0; }
+.preset .dots { display: flex; gap: 3px; }
+.preset .dots i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.preset small { font: 400 12px var(--f-mono); color: var(--muted); }
+.preset.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.mode { text-align: left; display: grid; gap: 4px; padding: 12px; min-height: 0; font-weight: 400; line-height: 1.4; }
+.mode b { font: 700 16px/1.2 var(--f-display); font-stretch: 85%; }
+.mode span { font-size: 13px; color: var(--muted); }
+.mode.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.theme { display: grid; gap: 8px; padding: 10px; min-height: 0; text-align: left; }
+.theme .sw { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; height: 22px; }
+.theme .sw i { border-radius: 4px; display: block; }
+.theme.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.custom { display: grid; gap: 10px; }
+.custom-row { display: grid; grid-template-columns: 110px auto auto minmax(0, 1fr); gap: 10px; align-items: center; }
+@media (max-width: 520px) { .custom-row { grid-template-columns: 1fr auto auto; } .custom-row .fr { grid-column: 1 / -1; } }
+input[type="color"] { width: 44px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 2px; }
+select { font: 500 14px var(--f-body); padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+
+.notice { border-radius: 10px; padding: 12px 14px; background: var(--sunk); font-size: 14px; display: grid; gap: 6px; }
+.notice.bad { border-left: 3px solid var(--bad); }
+.notice.warn { border-left: 3px solid var(--warn); }
+.notice code, .guide code { font-family: var(--f-mono); font-size: 13px; background: var(--bg); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+
+.log { font: 12px/1.6 var(--f-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+.log .tx { color: var(--accent); } .log .rx { color: var(--ready); } .log .er { color: var(--bad); }
+
+details.guide { border-top: 1px solid var(--line); padding-top: 12px; }
+details.guide summary { cursor: pointer; font-weight: 600; }
+.guide ol, .guide ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; }
+table.levels { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.levels td, table.levels th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+table.levels th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.tbl { overflow-x: auto; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-height: 34px; padding: 6px 12px; background: transparent; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+.checks { display: grid; gap: 6px; font-size: 13px; }
+.checks label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.checks input { margin-top: 3px; accent-color: var(--accent); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.kpi { background: var(--sunk); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.kpi b { font: 700 22px/1.1 var(--f-display); font-stretch: 85%; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.live { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+.live.idle { border-style: dashed; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart text { fill: var(--muted); font: 11px var(--f-mono); }
+.chart .t { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.chart .ta { fill: var(--accent); opacity: .12; }
+.chart .sp { fill: none; stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.chart .b { fill: none; stroke: var(--ready); stroke-width: 1.5; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+table.hist { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.hist th, table.hist td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+table.hist th { font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+table.hist td.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+table.hist tr.pick { cursor: pointer; }
+table.hist tr.pick:hover td, table.hist tr.sel td { background: var(--sunk); }
+.spark { width: 90px; height: 22px; display: block; }
+.spark path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.profiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.prof { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; align-content: start; }
+.prof#profGo { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.prof h3 { color: var(--fg); font-size: 14px; }
+.prof p { font-size: 13px; margin-top: 4px; }
+dl.pv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+dl.pv dt { color: var(--muted); }
+dl.pv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+ul.verify { list-style: none; margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--sunk); display: grid; gap: 6px; font-size: 14px; }
+ul.verify li { display: flex; gap: 10px; align-items: baseline; }
+ul.verify li i { font-style: normal; font-weight: 700; width: 1.2em; text-align: center; }
+ul.verify li.ok i { color: var(--ready); } ul.verify li.bad i { color: var(--bad); } ul.verify li.wait i { color: var(--muted); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-weight: 500; max-width: calc(100% - 32px); }
+.disabled-zone { opacity: .5; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><small>Bluetooth-Steuerung · ohne PAX-Konto</small>PAX 3 Steuerzentrale</h1>
+    <div class="row">
+      <div class="seg" role="group" aria-label="Temperatureinheit">
+        <button id="unitC" type="button" aria-pressed="true">°C</button>
+        <button id="unitF" type="button" aria-pressed="false">°F</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="support" hidden></div>
+
+  <div class="grid">
+    <aside class="rail">
+      <section class="panel" aria-labelledby="h-status">
+        <header><h2 id="h-status">Status</h2><span id="connChip" class="chip"><i></i>Nicht verbunden</span></header>
+        <div class="ring" id="ring">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
+            <g transform="translate(100 100)">
+              <path class="petal" id="pt0" d="M0,-14 C22,-34 22,-72 0,-88 C-22,-72 -22,-34 0,-14Z" transform="rotate(-45)"/>
+              <path class="petal" id="pt1" d="M0,-14 C22,-34 22,-72 0,-88 C-22,-72 -22,-34 0,-14Z" transform="rotate(45)"/>
+              <path class="petal" id="pt2" d="M0,-14 C22,-34 22,-72 0,-88 C-22,-72 -22,-34 0,-14Z" transform="rotate(135)"/>
+              <path class="petal" id="pt3" d="M0,-14 C22,-34 22,-72 0,-88 C-22,-72 -22,-34 0,-14Z" transform="rotate(225)"/>
+              <circle r="50" style="fill: var(--panel); stroke: var(--line); stroke-width: 1.5"/>
+            </g>
+          </svg>
+          <div class="readout">
+            <div class="now"><span id="tNow">–</span><sup id="uNow">°C</sup></div>
+            <div class="goal">Ziel <span id="tGoal">–</span></div>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip" id="stateChip"><i></i>Ofen: –</span>
+          <span class="chip" id="modeChip"><i></i>Modus: –</span>
+          <span class="chip" id="lockChip" hidden><i></i>Gesperrt</span>
+        </div>
+        <dl class="stats">
+          <dt>Akku</dt><dd id="batt">–</dd>
+          <dd style="grid-column: 1 / -1"><div class="bar"><span id="battBar"></span></div></dd>
+          <dt>Eingestellter Sollwert</dt><dd id="setp">–</dd>
+          <dt>Helligkeit · Vibration</dt><dd id="bh">–</dd>
+          <dt>Seriennummer</dt><dd id="serialShow">–</dd>
+        </dl>
+      </section>
+
+      <section class="panel" aria-labelledby="h-conn">
+        <header><h2 id="h-conn">Verbindung</h2></header>
+        <label class="field" for="serial">
+          <span>Seriennummer <span class="muted" style="font-weight:400;font-size:13px">8 Zeichen, Rückseite</span></span>
+          <input id="serial" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="z. B. KRZQ2NW9">
+        </label>
+        <p class="muted" style="font-size:13px">Gerät einschalten und schütteln, bis die Blätter blau leuchten. Dann verbinden.</p>
+        <div class="row">
+          <button id="btnConnect" class="primary grow" type="button">Verbinden</button>
+          <button id="btnDisconnect" type="button" disabled>Trennen</button>
+          <button id="btnRefresh" type="button" disabled title="Alle Werte neu abfragen">Aktualisieren</button>
+        </div>
+        <button id="btnQuick" type="button" hidden>Mit gemerktem PAX verbinden</button>
+        <div class="checks">
+          <label for="autoRe"><input id="autoRe" type="checkbox" checked> <span>Bei Abbruch automatisch neu verbinden</span></label>
+          <label for="autoOpen"><input id="autoOpen" type="checkbox"> <span>Beim Öffnen der Seite automatisch verbinden</span></label>
+          <label for="showAll"><input id="showAll" type="checkbox"> <span>Alle Bluetooth-Geräte anzeigen (falls dein PAX umbenannt ist und nicht auftaucht)</span></label>
+        </div>
+        <p class="muted" id="quickHint" hidden style="font-size:12px">Damit Chrome sich das Gerät merkt, unter <code>chrome://flags</code> „Use the new permissions backend for Web Bluetooth“ aktivieren.</p>
+      </section>
+    </aside>
+
+    <main class="col" id="controls">
+      <section class="panel" aria-labelledby="h-temp">
+        <header><h2 id="h-temp">Temperatur</h2><span class="muted mono" id="tempRangeTxt">182–215 °C</span></header>
+        <div class="tempset">
+          <button class="stepper" id="tMinus" type="button" aria-label="1 Grad weniger">−</button>
+          <div>
+            <div class="big"><span id="tSel">200</span><span id="uSel" style="font-size:20px"> °C</span></div>
+            <input id="tSlider" type="range" min="182" max="215" step="1" value="200" aria-label="Zieltemperatur">
+          </div>
+          <button class="stepper" id="tPlus" type="button" aria-label="1 Grad mehr">+</button>
+        </div>
+        <div class="presets" id="presets"></div>
+        <div class="row">
+          <button id="tApply" class="primary grow" type="button">Temperatur senden</button>
+          <button id="tSave" type="button" title="Aktuellen Wert als eigenen Favoriten merken">Als Favorit merken</button>
+        </div>
+        <p class="muted" style="font-size:13px">Eine hier gesendete Temperatur bleibt im Gerät als 5. Stufe gespeichert (vier blaue Blätter). Du kannst sie danach ohne Handy oder PC über das Mundstück wählen. Niedriger heißt mehr Geschmack und weniger Dampf, höher heißt dichterer Dampf.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-prof">
+        <header><h2 id="h-prof">Geschmacks-Profil</h2><span class="muted" style="font-size:13px">ein Klick, dann bleibt alles im PAX gespeichert</span></header>
+        <div class="profiles">
+          <article class="prof" id="profGo">
+            <div><h3>Unterwegs</h3><p class="muted">Kein Handy, kein PC nötig. Schreibt alles ins Gerät.</p></div>
+            <dl class="pv" id="pvGo"></dl>
+            <button class="primary" id="applyGo" type="button">Auf den PAX schreiben</button>
+          </article>
+          <article class="prof" id="profHome">
+            <div><h3>Zu Hause, automatisch</h3><p class="muted">Wie Unterwegs, plus Temperatur-Treppe aus dem Browser. Seite muss verbunden bleiben.</p></div>
+            <dl class="pv" id="pvHome"></dl>
+            <button id="applyHome" type="button">Starten</button>
+          </article>
+        </div>
+        <ul class="verify" id="verify" hidden></ul>
+        <details class="guide">
+          <summary>Profil anpassen</summary>
+          <div class="row" style="margin-top:12px">
+            <label class="field grow" for="pfTemp"><span>Starttemperatur <b id="pfTempV"></b></span><input id="pfTemp" type="range" min="182" max="215" value="185"></label>
+            <label class="field grow" for="pfEnd"><span>Treppe bis <b id="pfEndV"></b></span><input id="pfEnd" type="range" min="182" max="215" value="204"></label>
+          </div>
+          <div class="row">
+            <label class="field grow" for="pfBright"><span>LED-Helligkeit <b id="pfBrightV"></b></span><input id="pfBright" type="range" min="0" max="100" step="5" value="25"></label>
+            <label class="field grow" for="pfHapt"><span>Vibration <b id="pfHaptV"></b></span><input id="pfHapt" type="range" min="0" max="100" step="5" value="60"></label>
+          </div>
+          <div class="row">
+            <label class="field grow" for="pfMode"><span>Heizmodus</span><select id="pfMode"></select></label>
+            <button id="pfReset" class="ghost" type="button">Empfohlene Werte</button>
+          </div>
+        </details>
+        <details class="guide" open>
+          <summary>Unterwegs am Gerät, Spickzettel</summary>
+          <ol id="cheat"></ol>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="h-mode">
+        <header><h2 id="h-mode">Heizmodus</h2><span class="muted" style="font-size:13px">sonst nur in der alten PAX-App</span></header>
+        <div class="modes" id="modes"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-session">
+        <header><h2 id="h-session">Temperatur-Treppe</h2><span class="muted" style="font-size:13px">läuft hier im Browser</span></header>
+        <p class="muted" style="font-size:14px">Startet mit niedriger Temperatur und erhöht sie in festen Abständen. So holst du erst den Geschmack und später die Dichte heraus. Die Seite muss dafür offen und verbunden bleiben.</p>
+        <div class="row">
+          <label class="field grow" for="rStart"><span>Start <b id="rStartV">185 °C</b></span><input id="rStart" type="range" min="182" max="215" value="185"></label>
+          <label class="field grow" for="rEnd"><span>Ende <b id="rEndV">210 °C</b></span><input id="rEnd" type="range" min="182" max="215" value="210"></label>
+        </div>
+        <div class="row">
+          <label class="field grow" for="rStep"><span>Schritt <b id="rStepV">5 °C</b></span><input id="rStep" type="range" min="1" max="10" value="5"></label>
+          <label class="field grow" for="rEvery"><span>alle <b id="rEveryV">60 s</b></span><input id="rEvery" type="range" min="15" max="300" step="15" value="60"></label>
+        </div>
+        <div class="row">
+          <button id="rGo" class="primary grow" type="button">Treppe starten</button>
+          <button id="rStop" type="button" disabled>Stoppen</button>
+          <span class="mono muted" id="rInfo"></span>
+        </div>
+      </section>
+
+      <section class="panel stats-panel" aria-labelledby="h-stats">
+        <header><h2 id="h-stats">Sitzungen</h2><span class="muted" style="font-size:13px">wird nur aufgezeichnet, solange die Seite verbunden ist</span></header>
+        <div class="live idle" id="liveBox">
+          <div class="row" style="justify-content:space-between">
+            <h3 id="liveTitle">Keine laufende Sitzung</h3>
+            <span class="mono" id="liveDur"></span>
+          </div>
+          <div class="kpis" id="liveKpis" hidden></div>
+          <div class="chart" id="liveChart"></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>Ofentemperatur</span><span><i style="background:var(--warn)"></i>Sollwert</span><span><i style="background:var(--ready)"></i>Akku</span></div>
+        </div>
+        <h3>Gesamt</h3>
+        <div class="kpis" id="totKpis"></div>
+        <div class="row" style="justify-content:space-between">
+          <h3>Verlauf</h3>
+          <div class="row">
+            <button id="csvBtn" class="ghost" type="button">Als CSV speichern</button>
+            <button id="clearHist" class="ghost" type="button">Verlauf löschen</button>
+            <button id="clearHistYes" type="button" hidden style="border-color:var(--bad);color:var(--bad)">Wirklich alles löschen</button>
+          </div>
+        </div>
+        <div class="tbl"><table class="hist">
+          <thead><tr><th>Beginn</th><th>Dauer</th><th>Verlauf</th><th>Soll</th><th>Max.</th><th>Modus</th><th>Akku</th><th>Boosts</th></tr></thead>
+          <tbody id="histBody"></tbody>
+        </table></div>
+        <p class="muted" style="font-size:12px">Eine Sitzung beginnt, wenn der Ofen heizt, und endet, wenn er ausgeht. Reißt die Verbindung ab und kommt innerhalb von 5 Minuten zurück, läuft dieselbe Sitzung weiter. „Boosts“ zählt, wie oft der PAX beim Ziehen nachgeheizt hat. Das passiert vor allem im Boost-Modus und ist kein exakter Zugzähler. Ein Klick auf eine Zeile zeigt ihren Verlauf oben.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-dev">
+        <header><h2 id="h-dev">Licht und Vibration</h2></header>
+        <div class="row">
+          <label class="field grow" for="bright"><span>LED-Helligkeit <b id="brightV">–</b></span><input id="bright" type="range" min="0" max="100" step="5" value="50"></label>
+          <label class="field grow" for="hapt"><span>Vibration <b id="haptV">–</b></span><input id="hapt" type="range" min="0" max="100" step="5" value="50"></label>
+        </div>
+        <h3>Farbschema der Blätter</h3>
+        <div class="themes" id="themes"></div>
+        <details class="guide">
+          <summary>Eigenes Farbschema bauen</summary>
+          <div class="custom" id="custom" style="margin-top:12px"></div>
+          <div class="row" style="margin-top:10px"><button id="customSend" class="primary" type="button">Eigenes Schema senden</button></div>
+          <p class="muted" style="font-size:13px;margin-top:8px">Die Animationsmuster sind nicht offiziell dokumentiert. 0 ist durchgehend, 1 und 2 sind pulsierende bzw. wechselnde Muster. Probier es aus, „Standard“ setzt alles zurück.</p>
+        </details>
+      </section>
+
+      <section class="panel" aria-labelledby="h-lock">
+        <header><h2 id="h-lock">Kindersicherung</h2><span class="chip warn"><i></i>Experimentell</span></header>
+        <p class="muted" style="font-size:14px">Sperrt das Heizen, bis du wieder entsperrst. Diese Funktion ist aus dem Protokoll abgeleitet und noch nicht am Gerät bestätigt. Prüfe nach dem Sperren, ob der PAX wirklich nicht mehr heizt.</p>
+        <div class="row">
+          <button id="lockOn" type="button">Sperren</button>
+          <button id="lockOff" type="button">Entsperren</button>
+          <span class="mono muted" id="lockRaw"></span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-log">
+        <header><h2 id="h-log">Protokoll</h2><div class="row"><button id="logCopy" class="ghost" type="button">Kopieren</button><button id="logClear" class="ghost" type="button">Leeren</button></div></header>
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+
+      <section class="panel guide" aria-labelledby="h-guide">
+        <header><h2 id="h-guide">Am Gerät, ohne App</h2></header>
+        <div class="tbl"><table class="levels">
+          <thead><tr><th>Stufe</th><th>Blätter</th><th>Temperatur</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>1 grün</td><td class="mono">182 °C · 360 °F</td></tr>
+            <tr><td>2</td><td>2 gelb</td><td class="mono">193 °C · 380 °F</td></tr>
+            <tr><td>3</td><td>3 orange</td><td class="mono">204 °C · 400 °F</td></tr>
+            <tr><td>4</td><td>4 rot</td><td class="mono">215 °C · 420 °F</td></tr>
+            <tr><td>5</td><td>4 blau</td><td>dein eigener Wert von hier</td></tr>
+          </tbody>
+        </table></div>
+        <ul>
+          <li><b>Ein/Aus:</b> Mundstück kurz drücken. Lila pulsierend heißt aufheizen, grün heißt bereit.</li>
+          <li><b>Stufe wählen:</b> Mundstück 2 s halten, mit kurzem Drücken durchschalten, mit Halten oder Schütteln bestätigen.</li>
+          <li><b>Akku:</b> Gerät kurz schütteln. Weiße Blätter zeigen den Ladestand.</li>
+          <li><b>Werksreset:</b> Gerät einschalten, gedrückt halten bis zur Temperaturwahl, quer halten und zehnmal von dir weg drehen. Die Blätter blinken fünfmal weiß.</li>
+        </ul>
+        <details class="guide">
+          <summary>Verbindung klappt nicht?</summary>
+          <ul>
+            <li><b>Linux, Chrome oder Chromium:</b> Wenn „Bluetooth nicht verfügbar“ erscheint, <code>chrome://flags/#enable-experimental-web-platform-features</code> aktivieren und Chrome neu starten. Bluetooth muss an sein: <code>bluetoothctl power on</code>.</li>
+            <li><b>Flatpak-Chrome:</b> <code>flatpak override --user --system-talk-name=org.bluez com.google.Chrome</code>, oder ein natives Chrome-Paket nutzen.</li>
+            <li><b>Umbenannter PAX (z. B. „funnymaker“):</b> Erst in den Linux-Bluetooth-Einstellungen das Gerät <b>entfernen</b> bzw. „Vergessen“, nicht nur trennen. Dann hier verbinden. Taucht er nicht auf, „Alle Bluetooth-Geräte anzeigen“ anhaken.</li>
+            <li><b>Gerät taucht nicht auf:</b> Nur eine Verbindung gleichzeitig ist möglich. Andere Tabs oder Handys trennen, unter Linux ggf. <code>bluetoothctl disconnect</code>. Gerät erneut schütteln, bis es blau leuchtet.</li>
+            <li><b>Werte bleiben „–“:</b> Seriennummer genau prüfen, sie ist der Schlüssel. Falsche Nummer ergibt unlesbare Daten im Protokoll.</li>
+            <li><b>iPhone:</b> Safari kann kein Bluetooth. Die Seite muss in <b>Bluefy</b> über eine https-Adresse geöffnet werden.</li>
+          </ul>
+        </details>
+      </section>
+    </main>
+  </div>
+  <p class="muted" style="font-size:12px;max-width:80ch">Inoffizielles Werkzeug, basiert auf dem offenen Protokoll-Nachbau von pax-romana (MIT). Keine Firmware-Funktionen. Die Seriennummer bleibt in diesem Browser. Temperaturen nur im Bereich, den PAX selbst vorsieht.</p>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+// PAX 3 protocol core: key derivation, AES-OFB packet crypto, message encode/decode.
+// Pure WebCrypto, no dependencies. Works in browsers and Node 20+.
+const PaxCore = (() => {
+  const subtle = globalThis.crypto.subtle;
+  const KEY_KEY = 'F7C866C38F78753086293BD57DD32540';
+
+  const hexToBytes = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const bytesToHex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  const concat = (a, b) => { const r = new Uint8Array(a.length + b.length); r.set(a); r.set(b, a.length); return r; };
+
+  // Single-block AES-ECB = AES-CBC with a zero IV, first block only.
+  async function aesBlock(rawKey, block16) {
+    const k = await subtle.importKey('raw', rawKey, 'AES-CBC', false, ['encrypt']);
+    const out = new Uint8Array(await subtle.encrypt({ name: 'AES-CBC', iv: new Uint8Array(16) }, k, block16));
+    return out.slice(0, 16);
+  }
+
+  // Device key: AES-ECB(KEY_KEY, serial+serial), first 16 bytes.
+  async function deriveKey(serial) {
+    if (!/^[A-Za-z0-9]{8}$/.test(serial)) throw new Error('Seriennummer muss 8 Zeichen lang sein');
+    const msg = new TextEncoder().encode(serial + serial);
+    return aesBlock(hexToBytes(KEY_KEY), msg);
+  }
+
+  // AES-OFB keystream: CBC-encrypting zero blocks with IV yields E(IV), E(E(IV)), ...
+  async function ofb(rawKey, iv, data) {
+    const blocks = Math.ceil(data.length / 16) || 1;
+    const k = await subtle.importKey('raw', rawKey, 'AES-CBC', false, ['encrypt']);
+    const ks = new Uint8Array(await subtle.encrypt({ name: 'AES-CBC', iv }, k, new Uint8Array(blocks * 16)));
+    const out = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) out[i] = data[i] ^ ks[i];
+    return out;
+  }
+
+  async function encrypt(key, plain, ivOverride) {
+    const iv = ivOverride || globalThis.crypto.getRandomValues(new Uint8Array(16));
+    return concat(await ofb(key, iv, plain), iv);
+  }
+
+  async function decrypt(key, packet) {
+    const iv = packet.slice(-16);
+    return ofb(key, iv, packet.slice(0, -16));
+  }
+
+  // Temperature: PAX 3 raw units (from official app, piecewise linear, integer math)
+  const div = (a, b) => Math.trunc(a / b);
+  const rawToC = raw => (raw < 1980 ? div((raw + 4) * 10, 109) + 3 : div(raw, 12) + 20);
+  const cToRaw = c => (c < 185 ? div((c - 3) * 109, 10) + 6 : (c - 20) * 12 + 10);
+
+  const A = {
+    ACTUAL_TEMP: 1, HEATER_SET_POINT: 2, BATTERY: 3, USAGE: 4, LOCKED: 6, CHARGE_STATUS: 7,
+    DEVICE_NAME: 10, GAME_MODE: 15, HEATER_RANGES: 17, DYNAMIC_MODE: 19, COLOR_THEME: 20,
+    BRIGHTNESS: 21, HAPTIC_MODE: 23, SUPPORTED: 24, UI_MODE: 27, SHELL_COLOR: 28,
+    TARGET_TEMP: 31, HEATING_STATE: 32, FIND_MY_PAX: 54, STATUS_UPDATE: 254,
+  };
+
+  const pkt16 = (type, fill) => { const b = new Uint8Array(16); b[0] = type; fill && fill(new DataView(b.buffer)); return b; };
+
+  const build = {
+    setTemp: c => pkt16(A.HEATER_SET_POINT, v => v.setUint16(1, cToRaw(Math.round(c)), true)),
+    brightness: pct => pkt16(A.BRIGHTNESS, v => v.setUint8(1, Math.round(Math.max(0, Math.min(1, pct)) * 128))),
+    haptics: pct => pkt16(A.HAPTIC_MODE, v => v.setUint8(1, Math.round(Math.max(0, Math.min(1, pct)) * 128))),
+    dynamicMode: m => pkt16(A.DYNAMIC_MODE, v => v.setUint8(1, m)),
+    locked: on => pkt16(A.LOCKED, v => v.setUint8(1, on ? 1 : 0)),
+    // theme: array of 4 modes [startup, heating, regulating, standby], each [r1,g1,b1,r2,g2,b2,anim,freq]
+    colorTheme: modes => new Uint8Array([A.COLOR_THEME, 4, ...modes.flat()]),
+    statusRequest: ids => pkt16(A.STATUS_UPDATE, v => {
+      let mask = 0n; for (const id of ids) mask |= 1n << BigInt(id);
+      v.setBigUint64(1, mask, true);
+    }),
+  };
+
+  function parse(p) {
+    const v = new DataView(p.buffer, p.byteOffset, p.byteLength);
+    const type = p[0];
+    const u16 = () => (p.length >= 3 ? v.getUint16(1, true) : null);
+    switch (type) {
+      case A.ACTUAL_TEMP: return { type, key: 'actual', value: rawToC(u16()) };
+      case A.HEATER_SET_POINT: return { type, key: 'setPoint', value: rawToC(u16()) };
+      case A.TARGET_TEMP: return { type, key: 'target', value: rawToC(u16()) };
+      case A.BATTERY: return { type, key: 'battery', value: p[1] };
+      case A.HEATING_STATE: return { type, key: 'heatingState', value: p[1] };
+      case A.BRIGHTNESS: return { type, key: 'brightness', value: p[1] / 128 };
+      case A.HAPTIC_MODE: return { type, key: 'haptics', value: p[1] / 128 };
+      case A.DYNAMIC_MODE: return { type, key: 'dynamicMode', value: p[1] };
+      case A.SHELL_COLOR: return { type, key: 'shellColor', value: p[1] };
+      case A.LOCKED: return { type, key: 'locked', value: p[1] };
+      case A.CHARGE_STATUS: return { type, key: 'charge', value: p[1] };
+      case A.COLOR_THEME: {
+        const n = p[1], modes = [];
+        for (let i = 0; i < n && 2 + i * 8 + 8 <= p.length; i++) modes.push(Array.from(p.slice(2 + i * 8, 10 + i * 8)));
+        return { type, key: 'colorTheme', value: modes };
+      }
+      default: return { type, key: 'unknown', value: bytesToHex(p) };
+    }
+  }
+
+  return { A, deriveKey, encrypt, decrypt, parse, build, rawToC, cToRaw, hexToBytes, bytesToHex };
+})();
+if (typeof module !== 'undefined') module.exports = PaxCore;
+
+</script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const SVC = '8e320200-64d2-11e6-bdf4-0800200c9a66';
+const CH_READ = '8e320201-64d2-11e6-bdf4-0800200c9a66';
+const CH_WRITE = '8e320202-64d2-11e6-bdf4-0800200c9a66';
+const CH_NOTIFY = '8e320203-64d2-11e6-bdf4-0800200c9a66';
+const T_MIN = 182, T_MAX = 215;
+const A = PaxCore.A;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('pax3.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('pax3.' + k, JSON.stringify(v)); } catch {} },
+};
+
+const st = { unit: store.get('unit', 'C'), sel: 200, actual: null, setPoint: null, target: null, battery: null,
+  heatingState: null, dynamicMode: null, brightness: null, haptics: null, locked: null, colorTheme: null };
+
+// ---------- helpers ----------
+const toF = c => Math.round(c * 9 / 5 + 32);
+const fmt = c => c == null ? '–' : (st.unit === 'C' ? `${c} °C` : `${toF(c)} °F`);
+const num = c => c == null ? '–' : (st.unit === 'C' ? c : toF(c));
+let toastT;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+function log(cls, msg) {
+  const el = $('log'), line = document.createElement('div');
+  line.className = cls; line.textContent = `${new Date().toLocaleTimeString('de-AT')}  ${msg}`;
+  el.appendChild(line); while (el.childNodes.length > 400) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------- support check ----------
+function checkSupport() {
+  const box = $('support');
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua);
+  let html = '';
+  if (!window.isSecureContext) {
+    html = `<div class="notice bad"><b>Unsichere Adresse.</b><span>Bluetooth im Browser geht nur über <code>https://</code>, <code>localhost</code> oder eine lokal geöffnete Datei.</span></div>`;
+  } else if (!navigator.bluetooth) {
+    if (window.top !== window.self) {
+      html = `<div class="notice bad"><b>Bluetooth ist in dieser Vorschau gesperrt.</b><span>Lade die Datei herunter und öffne sie direkt in Chrome oder Chromium.</span></div>`;
+    } else if (ios) {
+      html = `<div class="notice bad"><b>Safari kann kein Bluetooth.</b><span>Öffne diese Seite in der kostenlosen App <b>Bluefy – Web BLE Browser</b> aus dem App Store.</span></div>`;
+    } else if (/Firefox/.test(ua)) {
+      html = `<div class="notice bad"><b>Firefox unterstützt kein Web Bluetooth.</b><span>Öffne die Datei in Chrome oder Chromium.</span></div>`;
+    } else {
+      html = `<div class="notice bad"><b>Web Bluetooth ist ausgeschaltet.</b><span>In Chrome <code>chrome://flags/#enable-experimental-web-platform-features</code> auf „Enabled“ stellen und Chrome neu starten.</span></div>`;
+    }
+  }
+  box.innerHTML = html; box.hidden = !html;
+  return !html;
+}
+
+// ---------- BLE layer ----------
+let device, server, chRead, chWrite, chNotify, key, serial;
+const readQ = []; let reading = false;
+const writeQ = []; let writing = false;
+let pollTimer;
+
+let userDisconnect = false, reconnectTry = 0, reconnectTimer = null;
+
+async function connect() {
+  serial = $('serial').value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{8}$/.test(serial)) { toast('Bitte die 8-stellige Seriennummer eingeben'); $('serial').focus(); return; }
+  if (!checkSupport()) return;
+  store.set('serial', serial);
+  try {
+    key = await PaxCore.deriveKey(serial);
+    log('', 'Suche PAX-Geräte …');
+    const opts = $('showAll').checked
+      ? { acceptAllDevices: true, optionalServices: [SVC] }
+      : { filters: [{ services: [SVC] }, { namePrefix: 'PAX' }], optionalServices: [SVC] };
+    const picked = await navigator.bluetooth.requestDevice(opts);
+    log('', `Gewählt: „${picked.name || 'ohne Namen'}“`);
+    useDevice(picked);
+    store.set('lastDevice', { id: picked.id, name: picked.name || 'PAX', serial });
+    await attach();
+  } catch (e) {
+    if (e && e.name === 'NotFoundError') log('', 'Auswahl abgebrochen oder kein Gerät gefunden');
+    else { log('er', `Fehler: ${e && e.message || e}`); toast('Verbindung fehlgeschlagen, siehe Protokoll'); }
+    setConn(server && server.connected ? 'on' : 'off');
+  }
+}
+
+function useDevice(d) {
+  if (device && device !== d) device.removeEventListener('gattserverdisconnected', onDisconnected);
+  device = d;
+  device.removeEventListener('gattserverdisconnected', onDisconnected);
+  device.addEventListener('gattserverdisconnected', onDisconnected);
+}
+
+// Opens GATT, sets up characteristics and starts polling. Used for first connect and every reconnect.
+let attaching = false;
+async function attach() {
+  attaching = true;
+  try { await attachInner(); } finally { attaching = false; }
+}
+async function attachInner() {
+  userDisconnect = false;
+  setConn(reconnectTry ? 'reconnecting' : 'connecting');
+  server = await device.gatt.connect();
+  let svc;
+  try { svc = await server.getPrimaryService(SVC); }
+  catch (e) {
+    device.gatt.disconnect();
+    throw new Error(`„${device.name || 'Dieses Gerät'}“ hat keinen PAX-Steuerdienst. Falsches Gerät gewählt, oder Linux hält den PAX noch fest (siehe Hilfe unten).`);
+  }
+  [chRead, chWrite, chNotify] = await Promise.all([svc.getCharacteristic(CH_READ), svc.getCharacteristic(CH_WRITE), svc.getCharacteristic(CH_NOTIFY)]);
+  await chNotify.startNotifications();
+  chNotify.addEventListener('characteristicvaluechanged', () => { diag.notifies++; queueRead(); });
+  log('rx', `${reconnectTry ? 'Wieder verbunden' : 'Verbunden'} mit ${device.name || 'PAX'}`);
+  if (reconnectTry) toast('Wieder verbunden');
+  reconnectTry = 0;
+  const pr = c => Object.entries(c.properties || {}).filter(([, v]) => v).map(([k]) => k).join(',') || '?';
+  log('', `Diagnose: Schreiben [${pr(chWrite)}] · Lesen [${pr(chRead)}] · Melden [${pr(chNotify)}]`);
+  Object.assign(diag, { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null });
+  clearTimeout(diag.timer);
+  diag.timer = setTimeout(diagnose, 6000);
+  setConn('on');
+  $('serialShow').textContent = serial;
+  requestAll();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => send(PaxCore.build.statusRequest([A.BATTERY, A.HEATING_STATE, A.ACTUAL_TEMP, A.LOCKED]), 'Status'), 15000);
+}
+
+async function disconnect() {
+  const restoring = homeRamp && chWrite;
+  userDisconnect = true; stopRamp();
+  if (restoring) await new Promise(r => setTimeout(r, 800));
+  clearTimeout(reconnectTimer); reconnectTry = 0;
+  stopWatching();
+  if (device && device.gatt.connected) device.gatt.disconnect();
+  else { setConn('off'); log('', 'Wiederverbinden abgebrochen'); }
+}
+
+function onDisconnected() {
+  if (attaching) return;          // a failed connect attempt; its caller schedules the next try
+  clearInterval(pollTimer); stopRamp(); chWrite = null;
+  stats.pause();
+  if (userDisconnect || !$('autoRe').checked) {
+    log('er', 'Verbindung getrennt'); setConn('off'); return;
+  }
+  log('er', 'Verbindung abgerissen, verbinde automatisch neu …');
+  scheduleReconnect();
+}
+
+const RECONNECT_MAX = 8;
+function scheduleReconnect() {
+  reconnectTry++;
+  if (reconnectTry > RECONNECT_MAX) {
+    log('er', `${RECONNECT_MAX} Versuche ohne Erfolg.`);
+    reconnectTry = 0;
+    waitForAdvert();
+    return;
+  }
+  const wait = Math.min(30, 2 ** (reconnectTry - 1));
+  setConn('reconnecting');
+  log('', `Versuch ${reconnectTry}/${RECONNECT_MAX} in ${wait} s`);
+  reconnectTimer = setTimeout(async () => {
+    if (userDisconnect) return;
+    try { await attach(); }
+    catch (e) { log('er', `Versuch ${reconnectTry} fehlgeschlagen: ${e.message || e}`); scheduleReconnect(); }
+  }, wait * 1000);
+}
+
+// When the PAX is out of range or asleep: listen for its advertisements and connect as soon as it shows up.
+let watching = false;
+async function waitForAdvert() {
+  if (!device || !device.watchAdvertisements) {
+    setConn('off');
+    log('', 'Gerät nicht erreichbar. PAX schütteln und erneut „Verbinden“ klicken.');
+    return;
+  }
+  try {
+    device.removeEventListener('advertisementreceived', onAdvert);
+    device.addEventListener('advertisementreceived', onAdvert);
+    await device.watchAdvertisements();
+    watching = true;
+    setConn('waiting');
+    log('', 'Warte auf den PAX. Sobald er eingeschaltet und in Reichweite ist, verbinde ich automatisch.');
+  } catch (e) {
+    setConn('off');
+    log('er', `Warten auf das Gerät nicht möglich: ${e.message || e}`);
+  }
+}
+function stopWatching() {
+  if (!device) return;
+  device.removeEventListener('advertisementreceived', onAdvert);
+  if (watching && device.unwatchAdvertisements) try { device.unwatchAdvertisements(); } catch {}
+  watching = false;
+}
+async function onAdvert() {
+  stopWatching();
+  log('rx', 'PAX gesichtet, verbinde …');
+  try { await attach(); }
+  catch (e) { log('er', `Verbinden fehlgeschlagen: ${e.message || e}`); scheduleReconnect(); }
+}
+
+// On page open: reconnect to the device Chrome already granted, without the chooser.
+async function restoreRemembered() {
+  const last = store.get('lastDevice', null);
+  if (!last || !navigator.bluetooth) return;
+  if (!navigator.bluetooth.getDevices) {
+    if (!/iPhone|iPad|iPod/.test(navigator.userAgent)) $('quickHint').hidden = false;
+    return;
+  }
+  let list = [];
+  try { list = await navigator.bluetooth.getDevices(); } catch { return; }
+  const known = list.find(d => d.id === last.id);
+  if (!known) return;
+  $('btnQuick').hidden = false;
+  $('btnQuick').textContent = `Mit „${known.name || last.name}“ verbinden`;
+  $('btnQuick').onclick = () => quickConnect(known, last);
+  if ($('autoOpen').checked) quickConnect(known, last);
+}
+async function quickConnect(d, last) {
+  serial = (last.serial || $('serial').value).toUpperCase();
+  $('serial').value = serial;
+  try { key = await PaxCore.deriveKey(serial); } catch (e) { toast(e.message); return; }
+  useDevice(d);
+  log('', `Verbinde mit gemerktem Gerät „${d.name || last.name}“ …`);
+  try { await attach(); }
+  catch (e) { log('', 'Gerät noch nicht erreichbar.'); waitForAdvert(); }
+}
+
+function queueRead() { readQ.push(1); if (!reading) drainRead(); }
+async function drainRead() {
+  reading = true;
+  while (readQ.length) {
+    readQ.shift();
+    try {
+      const dv = await chRead.readValue();
+      const enc = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength).slice();
+      if (enc.length <= 16) continue;
+      const plain = await PaxCore.decrypt(key, enc);
+      diag.reads++;
+      const msg = PaxCore.parse(plain);
+      if (KNOWN.has(plain[0])) diag.known++; else diag.unknown++;
+      if ([1, 3, 31, 32].includes(plain[0]) && plain.length >= 16 && plain.slice(4).every(b => b === 0)) diag.core++;
+      handle(msg, plain);
+    } catch (e) { log('er', `Lesen: ${e.message || e}`); }
+  }
+  reading = false;
+}
+
+async function send(plain, label) {
+  if (!chWrite) { toast('Nicht verbunden'); return false; }
+  return new Promise(resolve => { writeQ.push({ plain, label, resolve }); if (!writing) drainWrite(); });
+}
+async function writeRobust(pkt) {
+  const tryWith = () => chWrite.writeValueWithResponse ? chWrite.writeValueWithResponse(pkt) : chWrite.writeValue(pkt);
+  const tryWithout = () => chWrite.writeValueWithoutResponse(pkt);
+  if (diag.writeMode === 'without') return tryWithout();
+  if (diag.writeMode === 'with') return tryWith();
+  try { await tryWith(); diag.writeMode = 'with'; log('', 'Diagnose: Schreiben mit Bestätigung funktioniert'); }
+  catch (e1) {
+    log('er', `Schreiben mit Bestätigung abgelehnt (${e1.message || e1}), versuche ohne …`);
+    if (!chWrite.writeValueWithoutResponse) throw e1;
+    await tryWithout(); diag.writeMode = 'without'; log('', 'Diagnose: Schreiben ohne Bestätigung funktioniert');
+  }
+}
+const KNOWN = new Set([1,2,3,4,5,6,7,8,9,10,13,15,17,18,19,20,21,23,24,25,27,28,30,31,32,36,40,41,42,49,50,52,53,54]);
+const diag = { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, timer: null };
+function diagnose() {
+  if (!chWrite) return;
+  log('', `Diagnose nach 6 s: ${diag.notifies} Meldungen, ${diag.reads} gelesen, ${diag.core} eindeutig lesbar, ${diag.unknown} unlesbar, Schreibart ${diag.writeMode || 'unbekannt'}`);
+  let html = '';
+  if (diag.notifies === 0) {
+    html = `<div class="notice bad"><b>Der PAX sendet keine Daten.</b><span>Die Verbindung steht, aber es kommen keine Meldungen. Trennen, PAX einmal aus- und einschalten, schütteln bis blau, neu verbinden. Hilft das nicht: Chrome ganz schließen, im Terminal <code>sudo systemctl restart bluetooth</code>, erneut versuchen.</span></div>`;
+  } else if (diag.core === 0 && diag.reads > 0) {
+    html = `<div class="notice bad"><b>Die Seriennummer passt vermutlich nicht.</b><span>Der PAX antwortet, aber die Daten lassen sich mit „${serial}“ nicht entschlüsseln. Darum ignoriert er auch deine Befehle. Prüfe die 8 Zeichen auf der Rückseite genau, vor allem 0 und O, 1 und I, 5 und S, 8 und B.</span></div>`;
+  } else if (diag.writeMode === null) {
+    html = `<div class="notice warn"><b>Befehle kommen nicht an.</b><span>Lesen funktioniert, Schreiben nicht. Bitte kopiere das Protokoll unten und schick es mir.</span></div>`;
+  }
+  if (html) { $('support').innerHTML = html; $('support').hidden = false; }
+  else log('rx', 'Diagnose: Seriennummer stimmt, Lesen und Schreiben funktionieren');
+}
+async function drainWrite() {
+  writing = true;
+  while (writeQ.length) {
+    const { plain, label, resolve } = writeQ.shift();
+    try {
+      const pkt = await PaxCore.encrypt(key, plain);
+      await writeRobust(pkt);
+      log('tx', `→ ${label}  ${PaxCore.bytesToHex(plain).replace(/(00)+$/, '')}`);
+      resolve(true);
+    } catch (e) { log('er', `Senden (${label}): ${e.message || e}`); resolve(false); }
+  }
+  writing = false;
+}
+
+function requestAll() {
+  send(PaxCore.build.statusRequest([A.ACTUAL_TEMP, A.HEATER_SET_POINT, A.BATTERY, A.LOCKED, A.DYNAMIC_MODE,
+    A.COLOR_THEME, A.BRIGHTNESS, A.HAPTIC_MODE, A.TARGET_TEMP, A.HEATING_STATE]), 'Alle Werte abfragen');
+}
+
+// ---------- incoming ----------
+const STATES = {
+  0: ['Heizt auf', 'heat'], 1: ['Bereit', 'ok'], 2: ['Boost beim Zug', 'heat'], 3: ['Kühlt zwischen Zügen', ''],
+  4: ['Standby', ''], 5: ['Ofen aus', ''], 6: ['Temperaturwahl am Gerät', 'warn'],
+};
+function handle(msg, plain) {
+  const quiet = msg.key === 'actual' && diag.reads > 6;
+  if (!quiet) log('rx', `← ${msg.key === 'unknown' ? 'Attribut ' + msg.type : msg.key}  ${PaxCore.bytesToHex(plain).replace(/(00)+$/, '')}`);
+  if (msg.key in st) st[msg.key] = msg.value;
+  if (msg.key === 'heatingState') stats.onState(msg.value);
+  if (msg.key === 'actual') stats.onTemp(msg.value);
+  if (msg.key === 'battery') stats.onBattery(msg.value);
+  if (msg.key === 'setPoint') stats.onSetPoint(msg.value);
+  if (msg.key === 'dynamicMode') stats.onMode(msg.value);
+  if (msg.key === 'setPoint' && !rampTimer) { st.sel = clampT(msg.value); }
+  render();
+}
+
+// ---------- rendering ----------
+const PRESETS = [
+  { c: 182, n: 1, col: 'var(--p1)', name: 'Stufe 1' },
+  { c: 193, n: 2, col: 'var(--p2)', name: 'Stufe 2' },
+  { c: 204, n: 3, col: 'var(--p3)', name: 'Stufe 3' },
+  { c: 215, n: 4, col: 'var(--p4)', name: 'Stufe 4' },
+];
+const MODES = [
+  { id: 0, name: 'Standard', d: 'Heizt auf den Sollwert und hält ihn, kühlt im Leerlauf langsam ab.' },
+  { id: 1, name: 'Boost', d: 'Heizt schnell, bleibt heißer, kühlt kaum ab. Am meisten Dampf.' },
+  { id: 2, name: 'Effizienz', d: 'Erhöht die Temperatur pro Minute um etwa 1 °C, damit das Material gleichmäßig ausgenutzt wird.' },
+  { id: 3, name: 'Stealth', d: 'Gedimmte Blätter und schnelles Abkühlen zwischen den Zügen. Weniger Geruch.' },
+  { id: 4, name: 'Geschmack', d: 'Kühlt nach jedem Zug rasch ab, heizt nur beim Ziehen. Schont das Aroma.' },
+];
+const THEMES = [
+  { n: 'Standard', t: [[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]], sw: ['#8a63d2','#8a63d2','#34a853','#9aa2b1'] },
+  { n: 'Ocean', t: [[0,0,255,0,108,117,0,17],[19,7,40,40,0,255,0,16],[36,92,67,0,0,255,2,9],[0,20,20,0,0,255,1,6]] },
+  { n: 'Sunset', t: [[255,115,40,153,0,104,1,5],[255,115,40,153,0,104,0,15],[253,149,40,153,0,136,2,11],[255,114,125,0,64,154,1,6]] },
+  { n: 'Mars', t: [[250,0,0,60,20,0,2,27],[255,0,0,3,2,1,0,17],[255,22,3,3,2,1,2,9],[250,30,10,4,15,12,1,7]] },
+];
+const PHASES = ['Einschalten', 'Aufheizen', 'Halten', 'Standby'];
+const rgb = (r, g, b) => '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+const clampT = c => Math.max(T_MIN, Math.min(T_MAX, Math.round(c)));
+
+function buildStatic() {
+  // presets
+  const favs = store.get('favs', []);
+  const all = [...PRESETS, ...favs.map(c => ({ c, n: 4, col: 'var(--p5)', name: 'Favorit', fav: true }))];
+  $('presets').innerHTML = all.map((p, i) => `<button type="button" class="preset" data-c="${p.c}" data-i="${i}">
+      <span class="dots">${Array.from({ length: p.n }, () => `<i style="background:${p.col}"></i>`).join('')}</span>
+      <b>${p.name}</b><small data-t="${p.c}">${fmt(p.c)}</small></button>`).join('');
+  $('presets').querySelectorAll('.preset').forEach(b => b.onclick = () => { st.sel = +b.dataset.c; render(); });
+  // modes
+  $('modes').innerHTML = MODES.map(m => `<button type="button" class="mode" data-m="${m.id}"><b>${m.name}</b><span>${m.d}</span></button>`).join('');
+  $('modes').querySelectorAll('.mode').forEach(b => b.onclick = async () => {
+    const m = +b.dataset.m;
+    if (await send(PaxCore.build.dynamicMode(m), `Heizmodus ${MODES[m].name}`)) { st.dynamicMode = m; render(); toast(`Modus ${MODES[m].name} gesendet`); }
+    setTimeout(() => send(PaxCore.build.statusRequest([A.DYNAMIC_MODE]), 'Modus prüfen'), 600);
+  });
+  // themes
+  $('themes').innerHTML = THEMES.map((th, i) => {
+    const sw = th.sw || th.t.map(m => rgb(m[0], m[1], m[2]));
+    return `<button type="button" class="theme" data-i="${i}"><span class="sw">${sw.map(c => `<i style="background:${c}"></i>`).join('')}</span><b>${th.n}</b></button>`;
+  }).join('');
+  $('themes').querySelectorAll('.theme').forEach(b => b.onclick = async () => {
+    const th = THEMES[+b.dataset.i];
+    if (await send(PaxCore.build.colorTheme(th.t), `Farbschema ${th.n}`)) { st.colorTheme = th.t; render(); toast(`Farbschema ${th.n} gesendet`); }
+  });
+  // custom theme builder
+  const saved = store.get('custom', [[0,200,255,0,60,255,0,12],[150,60,255,60,0,200,1,14],[0,255,120,0,120,60,0,10],[40,40,60,0,0,40,1,6]]);
+  $('custom').innerHTML = PHASES.map((p, i) => `<div class="custom-row" data-i="${i}">
+      <b>${p}</b>
+      <input type="color" id="cc1_${i}" aria-label="${p} Farbe 1" value="${rgb(...saved[i].slice(0, 3))}">
+      <input type="color" id="cc2_${i}" aria-label="${p} Farbe 2" value="${rgb(...saved[i].slice(3, 6))}">
+      <div class="row fr">
+        <select id="ca_${i}" aria-label="${p} Animation">${[0, 1, 2].map(a => `<option value="${a}" ${saved[i][6] === a ? 'selected' : ''}>Muster ${a}</option>`).join('')}</select>
+        <input class="grow" type="range" id="cf_${i}" min="1" max="30" value="${saved[i][7] || 10}" aria-label="${p} Tempo">
+      </div></div>`).join('');
+}
+
+function readCustom() {
+  const hex = h => [1, 3, 5].map(o => parseInt(h.substr(o, 2), 16));
+  return PHASES.map((_, i) => [...hex($(`cc1_${i}`).value), ...hex($(`cc2_${i}`).value), +$(`ca_${i}`).value, +$(`cf_${i}`).value]);
+}
+
+function render() {
+  const u = st.unit === 'C' ? '°C' : '°F';
+  $('unitC').setAttribute('aria-pressed', st.unit === 'C'); $('unitF').setAttribute('aria-pressed', st.unit === 'F');
+  $('tNow').textContent = num(st.actual); $('uNow').textContent = u;
+  const goal = st.target ?? st.setPoint;
+  $('tGoal').textContent = fmt(goal);
+  $('tSel').textContent = num(st.sel); $('uSel').textContent = ' ' + u; $('tSlider').value = st.sel;
+  $('tempRangeTxt').textContent = `${fmt(T_MIN).replace(/ .+/, '')}–${fmt(T_MAX)}`;
+  $('setp').textContent = fmt(st.setPoint);
+  document.querySelectorAll('[data-t]').forEach(s => s.textContent = fmt(+s.dataset.t));
+  document.querySelectorAll('.preset').forEach(b => b.classList.toggle('sel', +b.dataset.c === st.sel));
+  // petals: lit count by progress of actual towards goal; colour mirrors the device (purple heating, green ready)
+  const ready = st.heatingState === 1 || st.heatingState === 2 || st.heatingState === 3;
+  const off = st.heatingState === 5 || st.heatingState == null;
+  let lit = 0;
+  if (!off && st.actual != null && goal) lit = ready ? 4 : Math.max(1, Math.min(4, Math.ceil(4 * (st.actual - 25) / (goal - 25))));
+  const col = ready ? 'var(--ready)' : 'var(--accent)';
+  for (let i = 0; i < 4; i++) { const p = $('pt' + i); const on = i < lit; p.classList.toggle('on', on); p.style.fill = on ? col : ''; }
+  $('ring').classList.toggle('pulse', st.heatingState === 0);
+  // chips
+  const s = STATES[st.heatingState];
+  const sc = $('stateChip'); sc.className = 'chip ' + (s ? s[1] : ''); sc.lastChild.textContent = 'Ofen: ' + (s ? s[0] : '–');
+  const m = MODES[st.dynamicMode];
+  $('modeChip').lastChild.textContent = 'Modus: ' + (m ? m.name : '–');
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('sel', +b.dataset.m === st.dynamicMode));
+  $('lockChip').hidden = st.locked !== 1; $('lockChip').className = 'chip bad';
+  $('lockRaw').textContent = st.locked == null ? '' : `Gerät meldet: ${st.locked === 1 ? 'gesperrt' : st.locked === 0 ? 'entsperrt' : 'Wert ' + st.locked}`;
+  $('batt').textContent = st.battery == null ? '–' : st.battery + ' %';
+  const bb = $('battBar'); bb.style.width = (st.battery ?? 0) + '%';
+  bb.style.background = st.battery != null && st.battery < 20 ? 'var(--bad)' : 'var(--ready)';
+  const pct = v => v == null ? '–' : Math.round(v * 100) + ' %';
+  $('bh').textContent = `${pct(st.brightness)} · ${pct(st.haptics)}`;
+  if (st.brightness != null && document.activeElement !== $('bright')) $('bright').value = Math.round(st.brightness * 100);
+  if (st.haptics != null && document.activeElement !== $('hapt')) $('hapt').value = Math.round(st.haptics * 100);
+  $('brightV').textContent = $('bright').value + ' %'; $('haptV').textContent = $('hapt').value + ' %';
+  if (st.colorTheme) {
+    const key = JSON.stringify(st.colorTheme);
+    document.querySelectorAll('.theme').forEach(b => b.classList.toggle('sel', JSON.stringify(THEMES[+b.dataset.i].t) === key));
+  }
+  // ramp labels
+  $('rStartV').textContent = fmt(+$('rStart').value); $('rEndV').textContent = fmt(+$('rEnd').value);
+  $('rStepV').textContent = st.unit === 'C' ? `${$('rStep').value} °C` : `${Math.round($('rStep').value * 1.8)} °F`;
+  $('rEveryV').textContent = `${$('rEvery').value} s`;
+}
+
+function setConn(mode) {
+  const c = $('connChip');
+  const L = { on: ['ok', 'Verbunden'], connecting: ['warn', 'Verbinde …'], reconnecting: ['warn', `Verbinde neu … (${reconnectTry}/${RECONNECT_MAX})`],
+    waiting: ['heat', 'Wartet auf PAX'], off: ['', 'Nicht verbunden'] }[mode];
+  c.className = 'chip ' + L[0];
+  c.lastChild.textContent = L[1];
+  $('btnConnect').disabled = !(mode === 'off' || mode === 'waiting');
+  $('btnQuick').disabled = mode !== 'off';
+  $('btnDisconnect').disabled = mode === 'off';
+  $('btnRefresh').disabled = mode !== 'on';
+  $('controls').querySelectorAll('section:not(.guide):not(.stats-panel):not([aria-labelledby="h-log"])').forEach(s => s.classList.toggle('disabled-zone', mode !== 'on'));
+  if (mode !== 'on') { chWrite = null; Object.assign(st, { actual: null, target: null, heatingState: null }); render(); }
+}
+
+// ---------- session statistics ----------
+const ACTIVE = new Set([0, 1, 2, 3]);       // heating, ready, boosting, cooling between draws
+const RESUME_MS = 5 * 60 * 1000;
+const stats = {
+  cur: null, lastState: null, lastSample: 0, pauseTimer: null, viewing: null,
+  key() { return 'sessions.' + (serial || 'unbekannt'); },
+  all() { return store.get(this.key(), []); },
+  save(list) { store.set(this.key(), list.slice(-200)); },
+  persistCur() { store.set('cur.' + (serial || ''), this.cur); },
+  restore() {
+    const c = store.get('cur.' + (serial || ''), null);
+    if (!c) return;
+    // a session left open by a closed tab: finish it at its last known moment
+    if (Date.now() - (c.pausedAt || c.last || c.start) > RESUME_MS) { this.cur = c; this.finish(c.pausedAt || c.last, 'Seite geschlossen'); }
+    else this.cur = c;
+  },
+  begin() {
+    if (this.cur && this.cur.pausedAt && Date.now() - this.cur.pausedAt < RESUME_MS) {
+      log('', 'Sitzung läuft weiter'); this.cur.pausedAt = null; clearTimeout(this.pauseTimer); return;
+    }
+    if (this.cur) this.finish(this.cur.pausedAt || this.cur.last, 'Unterbrochen');
+    this.cur = { start: Date.now(), last: Date.now(), modes: {}, setTemps: [], maxT: null, battStart: st.battery, battEnd: st.battery, boosts: 0, samples: [], pausedAt: null };
+    if (st.dynamicMode != null) this.cur.modes[st.dynamicMode] = 1;
+    if (st.setPoint != null) this.cur.setTemps.push(st.setPoint);
+    log('rx', 'Sitzung beginnt');
+    this.persistCur(); renderStats();
+  },
+  onState(v) {
+    if (ACTIVE.has(v) && (!this.cur || this.cur.pausedAt)) this.begin();
+    if (this.cur && !this.cur.pausedAt) {
+      if (v === 2 && this.lastState !== 2) this.cur.boosts++;
+      if (v === 5) this.finish(Date.now(), 'Ofen aus');
+    }
+    this.lastState = v;
+  },
+  onTemp(c) {
+    const s = this.cur; if (!s || s.pausedAt) return;
+    s.maxT = Math.max(s.maxT ?? 0, c); s.last = Date.now();
+    if (Date.now() - this.lastSample >= 4000) {
+      this.lastSample = Date.now();
+      s.samples.push([Math.round((Date.now() - s.start) / 1000), c, st.target ?? st.setPoint ?? null, st.battery ?? null]);
+      if (s.samples.length > 900) s.samples = s.samples.filter((_, i) => i % 2 === 0);   // keep long sessions bounded
+      this.persistCur();
+    }
+  },
+  onBattery(b) { if (!this.cur) return; if (this.cur.battStart == null) this.cur.battStart = b; this.cur.battEnd = b; },
+  onSetPoint(c) { if (this.cur && this.cur.setTemps[this.cur.setTemps.length - 1] !== c) this.cur.setTemps.push(c); },
+  onMode(m) { if (this.cur) this.cur.modes[m] = 1; },
+  pause() {
+    if (!this.cur || this.cur.pausedAt) return;
+    this.cur.pausedAt = Date.now(); this.persistCur();
+    clearTimeout(this.pauseTimer);
+    this.pauseTimer = setTimeout(() => this.finish(this.cur.pausedAt, 'Verbindung weg'), RESUME_MS);
+  },
+  finish(end, reason) {
+    const s = this.cur; if (!s) return;
+    clearTimeout(this.pauseTimer);
+    this.cur = null; store.set('cur.' + (serial || ''), null);
+    const dur = Math.round(((end || s.last) - s.start) / 1000);
+    if (dur < 30) { log('', 'Sitzung unter 30 s, nicht gespeichert'); renderStats(); return; }
+    const step = Math.max(1, Math.ceil(s.samples.length / 80));
+    const rec = {
+      start: s.start, dur, reason,
+      setTemps: s.setTemps, maxT: s.maxT, modes: Object.keys(s.modes).map(Number),
+      battStart: s.battStart, battEnd: s.battEnd, boosts: s.boosts,
+      samples: s.samples.filter((_, i) => i % step === 0),
+    };
+    const list = this.all(); list.push(rec); this.save(list);
+    log('rx', `Sitzung gespeichert: ${fmtDur(dur)} (${reason})`);
+    renderStats();
+  },
+};
+
+const fmtDur = sec => { sec = Math.max(0, Math.round(sec)); const m = Math.floor(sec / 60), s2 = sec % 60, h = Math.floor(m / 60);
+  return h ? `${h} h ${String(m % 60).padStart(2, '0')} min` : `${m}:${String(s2).padStart(2, '0')} min`; };
+const fmtDate = t => new Date(t).toLocaleString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const modeNames = ms => (ms || []).map(m => MODES[m] ? MODES[m].name : m).join(', ') || '–';
+const battUsed = r => r.battStart != null && r.battEnd != null ? r.battStart - r.battEnd : null;
+
+function chartSVG(samples, big) {
+  if (!samples || samples.length < 2) return `<p class="muted" style="font-size:13px">Noch zu wenig Messpunkte für eine Kurve.</p>`;
+  const W = 600, H = big ? 200 : 160, L = 40, R = 36, T = 10, B = 24;
+  const tMax = samples[samples.length - 1][0] || 1;
+  const temps = samples.flatMap(p => [p[1], p[2]]).filter(v => v != null);
+  const lo = Math.max(0, Math.floor((Math.min(...temps) - 10) / 50) * 50), hi = Math.max(lo + 50, Math.ceil((Math.max(...temps) + 5) / 50) * 50);
+  const x = t => L + (t / tMax) * (W - L - R);
+  const y = c => T + (1 - (c - lo) / (hi - lo)) * (H - T - B);
+  const yb = b => T + (1 - b / 100) * (H - T - B);
+  const path = (idx, f) => samples.filter(p => p[idx] != null).map((p, i) => `${i ? 'L' : 'M'}${x(p[0]).toFixed(1)},${f(p[idx]).toFixed(1)}`).join('');
+  const tp = path(1, y);
+  let grid = '';
+  for (let c = lo; c <= hi; c += 50) grid += `<line x1="${L}" x2="${W - R}" y1="${y(c)}" y2="${y(c)}"/><text x="${L - 6}" y="${y(c) + 4}" text-anchor="end">${num(c)}°</text>`;
+  const ticks = [0, 0.5, 1].map(f => `<text x="${x(tMax * f)}" y="${H - 6}" text-anchor="${f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}">${fmtDur(tMax * f).replace(' min', '')}</text>`).join('');
+  const bat = samples.some(p => p[3] != null) ? `<path class="b" d="${path(3, yb)}"/><text x="${W - R + 6}" y="${yb(100) + 4}">100%</text><text x="${W - R + 6}" y="${yb(0)}">0%</text>` : '';
+  const last = samples[samples.length - 1];
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperaturverlauf der Sitzung">
+    <g class="grid">${grid}</g>${ticks}
+    <path class="ta" d="${tp}L${x(last[0])},${y(lo)}L${x(samples[0][0])},${y(lo)}Z"/>
+    <path class="sp" d="${path(2, y)}"/>${bat}
+    <path class="t" d="${tp}"/>
+    <circle cx="${x(last[0])}" cy="${y(last[1])}" r="3.5" style="fill:var(--accent)"/>
+  </svg>`;
+}
+function sparkSVG(samples) {
+  if (!samples || samples.length < 2) return '';
+  const tMax = samples[samples.length - 1][0] || 1, v = samples.map(p => p[1]);
+  const lo = Math.min(...v), hi = Math.max(lo + 1, ...v);
+  const d = samples.map((p, i) => `${i ? 'L' : 'M'}${(p[0] / tMax * 88 + 1).toFixed(1)},${(21 - (p[1] - lo) / (hi - lo) * 20).toFixed(1)}`).join('');
+  return `<svg class="spark" viewBox="0 0 90 22" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+const kpi = (v, l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+
+function renderStats() {
+  const list = stats.all(), c = stats.cur;
+  // live / selected session
+  const box = $('liveBox');
+  const view = stats.viewing != null ? list[stats.viewing] : null;
+  if (view) {
+    box.classList.remove('idle');
+    $('liveTitle').textContent = `Sitzung vom ${fmtDate(view.start)}`;
+    $('liveDur').textContent = fmtDur(view.dur);
+    $('liveKpis').hidden = false;
+    $('liveKpis').innerHTML = kpi(fmt(view.maxT), 'Höchste Temperatur') + kpi(battUsed(view) != null ? battUsed(view) + ' %' : '–', 'Akku verbraucht') + kpi(view.boosts, 'Boosts') + kpi(modeNames(view.modes), 'Modus');
+    $('liveChart').innerHTML = chartSVG(view.samples, true);
+  } else if (c) {
+    box.classList.remove('idle');
+    $('liveTitle').textContent = c.pausedAt ? 'Sitzung pausiert, Verbindung weg' : 'Laufende Sitzung';
+    $('liveDur').textContent = fmtDur(((c.pausedAt || Date.now()) - c.start) / 1000);
+    $('liveKpis').hidden = false;
+    const used = c.battStart != null && c.battEnd != null ? c.battStart - c.battEnd : null;
+    $('liveKpis').innerHTML = kpi(fmt(c.maxT), 'Höchste Temperatur') + kpi(used != null ? used + ' %' : '–', 'Akku verbraucht') + kpi(c.boosts, 'Boosts') + kpi(modeNames(Object.keys(c.modes).map(Number)), 'Modus');
+    $('liveChart').innerHTML = chartSVG(c.samples, true);
+  } else {
+    box.classList.add('idle');
+    $('liveTitle').textContent = 'Keine laufende Sitzung';
+    $('liveDur').textContent = '';
+    $('liveKpis').hidden = true;
+    $('liveChart').innerHTML = `<p class="muted" style="font-size:13px">Sobald der PAX bei bestehender Verbindung zu heizen beginnt, erscheint hier die Kurve.</p>`;
+  }
+  // totals
+  const now = Date.now(), week = list.filter(r => now - r.start < 7 * 864e5);
+  const total = list.reduce((a, r) => a + r.dur, 0);
+  const useds = list.map(battUsed).filter(v => v != null && v >= 0);
+  const tCount = {}; list.forEach(r => (r.setTemps || []).forEach(t => tCount[t] = (tCount[t] || 0) + 1));
+  const favT = Object.entries(tCount).sort((a, b) => b[1] - a[1])[0];
+  const mCount = {}; list.forEach(r => (r.modes || []).forEach(m => mCount[m] = (mCount[m] || 0) + 1));
+  const favM = Object.entries(mCount).sort((a, b) => b[1] - a[1])[0];
+  $('totKpis').innerHTML = list.length
+    ? kpi(list.length, `Sitzungen, davon ${week.length} in 7 Tagen`) + kpi(fmtDur(total), 'Gesamtzeit') +
+      kpi(fmtDur(total / list.length), 'Durchschnittliche Dauer') +
+      kpi(useds.length ? Math.round(useds.reduce((a, b) => a + b, 0) / useds.length) + ' %' : '–', 'Akku je Sitzung') +
+      kpi(favT ? fmt(+favT[0]) : '–', 'Häufigste Temperatur') + kpi(favM ? (MODES[favM[0]] || {}).name || '–' : '–', 'Häufigster Modus')
+    : `<p class="muted" style="font-size:13px;grid-column:1/-1">Noch keine gespeicherten Sitzungen für ${serial ? 'Gerät ' + serial : 'dieses Gerät'}.</p>`;
+  // history
+  $('histBody').innerHTML = list.map((r, i) => ({ r, i })).reverse().slice(0, 50).map(({ r, i }) => `<tr class="pick${stats.viewing === i ? ' sel' : ''}" data-i="${i}" tabindex="0">
+    <td>${fmtDate(r.start)}</td><td class="n">${fmtDur(r.dur)}</td><td>${sparkSVG(r.samples)}</td>
+    <td class="n">${(r.setTemps || []).length ? [...new Set(r.setTemps)].map(t => num(t)).join('→') + (st.unit === 'C' ? ' °C' : ' °F') : '–'}</td>
+    <td class="n">${fmt(r.maxT)}</td><td>${modeNames(r.modes)}</td>
+    <td class="n">${battUsed(r) != null ? '−' + battUsed(r) + ' %' : '–'}</td><td class="n">${r.boosts}</td></tr>`).join('')
+    || `<tr><td colspan="8" class="muted">Hier erscheinen deine Sitzungen.</td></tr>`;
+  $('histBody').querySelectorAll('tr.pick').forEach(tr => {
+    const pick = () => { const i = +tr.dataset.i; stats.viewing = stats.viewing === i ? null : i; renderStats(); };
+    tr.onclick = pick; tr.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+  });
+}
+
+function exportCSV() {
+  const list = stats.all();
+  if (!list.length) { toast('Noch keine Sitzungen'); return; }
+  const rows = [['Beginn', 'Dauer_s', 'Sollwerte_C', 'Max_C', 'Modus', 'Akku_Start', 'Akku_Ende', 'Boosts', 'Ende_durch']];
+  list.forEach(r => rows.push([new Date(r.start).toISOString(), r.dur, (r.setTemps || []).join('/'), r.maxT ?? '', modeNames(r.modes), r.battStart ?? '', r.battEnd ?? '', r.boosts, r.reason || '']));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+  a.download = `PAX3-Sitzungen-${serial || 'export'}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('CSV gespeichert');
+}
+
+// ---------- flavour profiles ----------
+const PROFILE_DEFAULT = { temp: 185, end: 204, bright: 25, hapt: 60, mode: 4 };
+let profile = { ...PROFILE_DEFAULT, ...store.get('profile', {}) };
+function readProfileForm() {
+  profile = { temp: +$('pfTemp').value, end: Math.max(+$('pfTemp').value, +$('pfEnd').value), bright: +$('pfBright').value, hapt: +$('pfHapt').value, mode: +$('pfMode').value };
+  store.set('profile', profile); renderProfiles();
+}
+function renderProfiles() {
+  const m = MODES[profile.mode]?.name || '–';
+  $('pfTemp').value = profile.temp; $('pfEnd').value = profile.end; $('pfBright').value = profile.bright; $('pfHapt').value = profile.hapt; $('pfMode').value = profile.mode;
+  $('pfTempV').textContent = fmt(profile.temp); $('pfEndV').textContent = fmt(profile.end);
+  $('pfBrightV').textContent = profile.bright + ' %'; $('pfHaptV').textContent = profile.hapt + ' %';
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  $('pvGo').innerHTML = row('Heizmodus', m) + row('Eigene Stufe (4 blaue Blätter)', fmt(profile.temp)) + row('LED-Helligkeit', profile.bright + ' %') + row('Vibration', profile.hapt + ' %');
+  $('pvHome').innerHTML = row('Heizmodus', m) + row('Treppe', `${fmt(profile.temp)} → ${fmt(profile.end)}`) + row('Schritt', `${st.unit === 'C' ? '4 °C' : '7 °F'} alle 2 min`) + row('Danach', 'bleibt auf Endwert');
+  const next = PRESETS.filter(p => p.c > profile.temp).slice(0, 2);
+  $('cheat').innerHTML = [
+    `<b>Einschalten</b> (Mundstück kurz drücken). Der PAX startet auf der zuletzt gewählten Stufe. Steht er nicht auf den <b>vier blauen Blättern</b>, Mundstück 2 s halten, bis zur blauen Stufe durchdrücken, mit Halten oder Schütteln bestätigen. Das ist dein ${fmt(profile.temp)}.`,
+    `Warten, bis er <b>vibriert und grün</b> leuchtet, dann noch 5–10 s. Langsam 3–5 s ziehen, keine kräftigen Züge.`,
+    `Der ${m}-Modus ${profile.mode === 4 ? 'kühlt zwischen den Zügen ab und heizt nur beim Ziehen. Darum ist der erste Zug nach einer Pause etwas schwächer, das ist normal.' : 'ist aktiv.'}`,
+    next.length ? `Lässt der Geschmack nach, eine Stufe hoch: zuerst <b>${next[0].name}</b> (${fmt(next[0].c)})${next[1] ? `, später <b>${next[1].name}</b> (${fmt(next[1].c)})` : ''}. Danach ist der Ofen meist ausgeschöpft.` : `Lässt der Geschmack nach, ist der Ofen ausgeschöpft.`,
+    `Ofen ist fertig, wenn das Material <b>mittel- bis dunkelbraun</b> und geruchlos ist. Vor dem Leeren abkühlen lassen.`,
+    `Nach der Treppe zu Hause stellt die Seite die blaue Stufe automatisch wieder auf ${fmt(profile.temp)}, sobald die Treppe endet oder du trennst. Reißt die Verbindung mittendrin ab, vor dem Losgehen einmal „Auf den PAX schreiben“ drücken.`,
+  ].map(t => `<li>${t}</li>`).join('');
+}
+
+// Write every setting, then read back and tick off what the device actually stored.
+async function applyProfile(withRamp) {
+  if (!chWrite) { toast('Erst verbinden'); return; }
+  stopRamp();
+  const v = $('verify'); v.hidden = false;
+  const items = [
+    { k: 'dynamicMode', label: `Heizmodus ${MODES[profile.mode].name}`, want: profile.mode, ok: x => x === profile.mode, pkt: PaxCore.build.dynamicMode(profile.mode) },
+    { k: 'setPoint', label: `Eigene Stufe ${fmt(profile.temp)}`, want: profile.temp, ok: x => Math.abs(x - profile.temp) <= 1, pkt: PaxCore.build.setTemp(profile.temp) },
+    { k: 'brightness', label: `LED-Helligkeit ${profile.bright} %`, ok: x => Math.abs(x * 100 - profile.bright) <= 2, pkt: PaxCore.build.brightness(profile.bright / 100) },
+    { k: 'haptics', label: `Vibration ${profile.hapt} %`, ok: x => Math.abs(x * 100 - profile.hapt) <= 2, pkt: PaxCore.build.haptics(profile.hapt / 100) },
+  ];
+  const draw = done => v.innerHTML = items.map(it => {
+    const val = st[it.k];
+    const state = !done ? 'wait' : (val != null && it.ok(val) ? 'ok' : 'bad');
+    return `<li class="${state}"><i>${state === 'ok' ? '✓' : state === 'bad' ? '✕' : '…'}</i><span>${it.label}${state === 'bad' ? ` <span class="muted">(Gerät meldet ${val == null ? 'nichts' : it.k === 'setPoint' ? fmt(val) : it.k === 'dynamicMode' ? (MODES[val]?.name || val) : Math.round(val * 100) + ' %'})</span>` : ''}</span></li>`;
+  }).join('');
+  items.forEach(it => st[it.k] = null);
+  draw(false);
+  for (const it of items) await send(it.pkt, it.label);
+  await new Promise(r => setTimeout(r, 700));
+  await send(PaxCore.build.statusRequest([A.DYNAMIC_MODE, A.HEATER_SET_POINT, A.BRIGHTNESS, A.HAPTIC_MODE]), 'Profil prüfen');
+  await new Promise(r => setTimeout(r, 2500));
+  draw(true); render();
+  const allOk = items.every(it => st[it.k] != null && it.ok(st[it.k]));
+  if (allOk) {
+    v.insertAdjacentHTML('beforeend', `<li class="ok"><i>✓</i><span><b>${withRamp ? 'Läuft.' : 'Fertig. Du kannst trennen und den PAX mitnehmen.'}</b></span></li>`);
+    toast(withRamp ? 'Geschmacks-Treppe läuft' : 'Unterwegs-Profil gespeichert');
+  } else {
+    v.insertAdjacentHTML('beforeend', `<li class="bad"><i>!</i><span>Nicht alles wurde bestätigt. Nochmal versuchen, oder Protokoll prüfen.</span></li>`);
+  }
+  if (withRamp) {
+    $('rStart').value = profile.temp; $('rEnd').value = profile.end; $('rStep').value = 4; $('rEvery').value = 120;
+    render(); homeRamp = true; startRamp();
+  }
+}
+
+// ---------- temperature ramp ----------
+let rampTimer = null, rampCur = 0;
+async function startRamp() {
+  if (st.dynamicMode === 2) toast('Hinweis: Effizienz erhöht selbst schon die Temperatur, die Treppe steigt dann doppelt');
+  let a = +$('rStart').value, b = +$('rEnd').value;
+  if (b < a) [a, b] = [b, a];
+  const step = +$('rStep').value, every = +$('rEvery').value * 1000;
+  rampCur = a; st.sel = a; render();
+  await send(PaxCore.build.setTemp(a), `Treppe Start ${a} °C`);
+  $('rGo').disabled = true; $('rStop').disabled = false;
+  const tick = async () => {
+    rampCur = Math.min(b, rampCur + step); st.sel = rampCur; render();
+    await send(PaxCore.build.setTemp(rampCur), `Treppe ${rampCur} °C`);
+    if (rampCur >= b) { stopRamp(); toast('Treppe fertig'); } else rampInfo(b, every);
+  };
+  rampTimer = setInterval(tick, every); rampInfo(b, every);
+}
+let rampNext;
+function rampInfo(b, every) { rampNext = Date.now() + every; $('rInfo').textContent = `jetzt ${fmt(rampCur)}, Ziel ${fmt(b)}`; }
+let homeRamp = false;
+function stopRamp() {
+  // after the home ramp, put the stored blue level back to the on-the-go start value
+  if (homeRamp) {
+    homeRamp = false;
+    if (chWrite) { send(PaxCore.build.setTemp(profile.temp), `Blaue Stufe zurück auf ${profile.temp} °C`); log('', `Treppe beendet, blaue Stufe wieder auf ${fmt(profile.temp)}`); }
+  } clearInterval(rampTimer); rampTimer = null; $('rGo').disabled = false; $('rStop').disabled = true; $('rInfo').textContent = ''; }
+
+// ---------- wire up ----------
+function wire() {
+  $('serial').value = store.get('serial', '');
+  $('serial').addEventListener('input', e => e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  $('serial').addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
+  $('btnConnect').onclick = connect; $('btnDisconnect').onclick = disconnect; $('btnRefresh').onclick = requestAll;
+  $('unitC').onclick = () => { st.unit = 'C'; store.set('unit', 'C'); render(); renderStats(); renderProfiles(); };
+  $('unitF').onclick = () => { st.unit = 'F'; store.set('unit', 'F'); render(); renderStats(); renderProfiles(); };
+  $('tSlider').oninput = e => { st.sel = +e.target.value; render(); };
+  $('tMinus').onclick = () => { st.sel = clampT(st.sel - 1); render(); };
+  $('tPlus').onclick = () => { st.sel = clampT(st.sel + 1); render(); };
+  $('tApply').onclick = async () => {
+    const c = clampT(st.sel);
+    if (await send(PaxCore.build.setTemp(c), `Temperatur ${c} °C`)) toast(`${fmt(c)} gesendet`);
+    setTimeout(() => send(PaxCore.build.statusRequest([A.HEATER_SET_POINT, A.TARGET_TEMP]), 'Sollwert prüfen'), 600);
+  };
+  $('tSave').onclick = () => {
+    const favs = store.get('favs', []);
+    if (!favs.includes(st.sel) && !PRESETS.some(p => p.c === st.sel)) { favs.push(st.sel); store.set('favs', favs.slice(-4)); buildStatic(); render(); toast(`${fmt(st.sel)} gemerkt`); }
+  };
+  const slide = (id, fn, label) => {
+    $(id).oninput = render;
+    $(id).onchange = e => send(fn(+e.target.value / 100), `${label} ${e.target.value} %`);
+  };
+  slide('bright', PaxCore.build.brightness, 'Helligkeit');
+  slide('hapt', PaxCore.build.haptics, 'Vibration');
+  $('customSend').onclick = async () => {
+    const t = readCustom(); store.set('custom', t);
+    if (await send(PaxCore.build.colorTheme(t), 'Eigenes Farbschema')) toast('Eigenes Schema gesendet');
+  };
+  $('lockOn').onclick = async () => { await send(PaxCore.build.locked(true), 'Sperren'); setTimeout(() => send(PaxCore.build.statusRequest([A.LOCKED]), 'Sperre prüfen'), 600); };
+  $('lockOff').onclick = async () => { await send(PaxCore.build.locked(false), 'Entsperren'); setTimeout(() => send(PaxCore.build.statusRequest([A.LOCKED]), 'Sperre prüfen'), 600); };
+  ['rStart', 'rEnd', 'rStep', 'rEvery'].forEach(id => $(id).oninput = render);
+  ['autoRe', 'autoOpen'].forEach(id => { $(id).checked = store.get(id, $(id).checked); $(id).onchange = e => store.set(id, e.target.checked); });
+  $('csvBtn').onclick = exportCSV;
+  $('clearHist').onclick = () => { $('clearHistYes').hidden = false; setTimeout(() => $('clearHistYes').hidden = true, 5000); };
+  $('clearHistYes').onclick = () => { stats.save([]); store.set(stats.key(), []); stats.viewing = null; $('clearHistYes').hidden = true; renderStats(); toast('Verlauf gelöscht'); };
+  setInterval(() => { if (stats.cur && stats.viewing == null) renderStats(); }, 5000);
+  setInterval(() => { if (stats.cur && !stats.cur.pausedAt) $('liveDur').textContent = fmtDur((Date.now() - stats.cur.start) / 1000); }, 1000);
+  window.addEventListener('pagehide', () => { if (stats.cur) stats.persistCur(); });
+  $('pfMode').innerHTML = MODES.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  ['pfTemp', 'pfEnd', 'pfBright', 'pfHapt', 'pfMode'].forEach(id => $(id).oninput = readProfileForm);
+  $('pfReset').onclick = () => { profile = { ...PROFILE_DEFAULT }; store.set('profile', profile); renderProfiles(); };
+  $('applyGo').onclick = () => applyProfile(false);
+  $('applyHome').onclick = () => applyProfile(true);
+  $('rGo').onclick = startRamp; $('rStop').onclick = stopRamp;
+  $('logClear').onclick = () => $('log').textContent = '';
+  $('logCopy').onclick = async () => {
+    const txt = $('log').innerText;
+    try { await navigator.clipboard.writeText(txt); toast('Protokoll kopiert'); }
+    catch { const r = document.createRange(); r.selectNodeContents($('log')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Markiert, mit Strg+C kopieren'); }
+  };
+}
+
+buildStatic(); wire(); checkSupport();
+serial = store.get('serial', '') || null;
+stats.restore();
+setConn('off'); render();
+renderStats(); renderProfiles();
+restoreRemembered();
+log('', 'Bereit. Seriennummer eingeben, PAX schütteln bis blau, dann Verbinden.');
+})();
+</script>
+</body>
+</html>
