@@ -303,6 +303,7 @@ ul.verify li.ok i { color: var(--ready); } ul.verify li.bad i { color: var(--bad
             <div><h3>Zu Hause, automatisch</h3><p class="muted">Wie Unterwegs, plus Temperatur-Treppe aus dem Browser. Seite muss verbunden bleiben.</p></div>
             <dl class="pv" id="pvHome"></dl>
             <button id="applyHome" type="button">Starten</button>
+            <p class="mono muted" id="homeStatus" hidden style="font-size:13px"></p>
           </article>
         </div>
         <ul class="verify" id="verify" hidden></ul>
@@ -805,26 +806,63 @@ async function writeRobust(pkt) {
   if (diag.writeMode === 'with') return tryWith();
   try { await tryWith(); diag.writeMode = 'with'; log('', 'Diagnose: Schreiben mit Bestätigung funktioniert'); }
   catch (e1) {
+    diag.lastErr = `${e1.name || 'Fehler'}: ${e1.message || e1}`;
     log('er', `Schreiben mit Bestätigung abgelehnt (${e1.message || e1}), versuche ohne …`);
     if (!chWrite.writeValueWithoutResponse) throw e1;
     await tryWithout(); diag.writeMode = 'without'; log('', 'Diagnose: Schreiben ohne Bestätigung funktioniert');
   }
 }
 const KNOWN = new Set([1,2,3,4,5,6,7,8,9,10,13,15,17,18,19,20,21,23,24,25,27,28,30,31,32,36,40,41,42,49,50,52,53,54]);
-const diag = { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, timer: null };
+const diag = { notifies: 0, reads: 0, known: 0, core: 0, unknown: 0, writeMode: null, timer: null, lastErr: '', echo: null, echoWait: false };
+const ECHO_TYPES = new Set([19, 20, 21, 23]);   // only ever sent on request, never spontaneously
+
+// Proof that commands reach the device: ask for values it only sends when asked.
+async function echoTest() {
+  diag.echo = false; diag.echoWait = true;
+  await send(PaxCore.build.statusRequest([A.DYNAMIC_MODE, A.COLOR_THEME, A.BRIGHTNESS, A.HAPTIC_MODE]), 'Gegentest');
+  for (let i = 0; i < 16 && !diag.echo; i++) await new Promise(r => setTimeout(r, 250));
+  diag.echoWait = false;
+  return diag.echo;
+}
+
+function writeHelpHTML() {
+  const err = diag.lastErr ? `<span class="muted">Linux meldete: <code>${diag.lastErr.replace(/</g, '&lt;')}</code></span>` : '';
+  return `<div class="notice bad"><b>Der PAX empfängt deine Befehle nicht.</b>
+    <span>Lesen klappt (der Akku kommt an, die Seriennummer stimmt), aber Befehle kommen nicht an. Deshalb lassen sich Profil, Temperatur und Treppe nicht setzen. Das ist ein bekanntes Problem der Bluetooth-Umsetzung von Chrome unter Linux, nicht deines PAX.</span>
+    ${err}
+    <span><b>1. Am schnellsten: iPhone.</b> Öffne <code>erp95.github.io/PAX</code> in Bluefy. Dort wurde das Schreiben am echten PAX 3 erfolgreich getestet. Vorher hier auf „Trennen“ klicken.</span>
+    <span><b>2. Unter Linux: PAX einmal koppeln.</b> Manche Linux-Systeme lassen Befehle erst nach einer Kopplung durch. PAX schütteln bis blau, dann im Terminal:<br>
+    <code>bluetoothctl</code> → <code>scan on</code> → warten bis „funnymaker“ mit Adresse erscheint → <code>pair ADRESSE</code> → <code>trust ADRESSE</code> → <code>disconnect ADRESSE</code> → <code>exit</code>.<br>
+    Danach Chrome komplett schließen, neu öffnen und hier verbinden.</span>
+    <span><b>3. Hilft beides nicht:</b> Auf „Diagnose kopieren“ klicken und mir den Text schicken.</span>
+    <div class="row"><button type="button" class="primary" id="copyDiag">Diagnose kopieren</button></div></div>`;
+}
+function copyDiagnosis() {
+  const head = [`PAX3-Diagnose ${new Date().toISOString()}`, `Browser: ${navigator.userAgent}`,
+    `Gerät: ${device && device.name}`, `Meldungen ${diag.notifies}, gelesen ${diag.reads}, lesbar ${diag.core}, unlesbar ${diag.unknown}`,
+    `Schreibart: ${diag.writeMode}, Gegentest: ${diag.echo}, Fehler: ${diag.lastErr || '-'}`, '---'].join('\n');
+  const txt = head + '\n' + $('log').innerText;
+  navigator.clipboard.writeText(txt).then(() => toast('Diagnose kopiert, einfach in den Chat einfügen'))
+    .catch(() => { const r = document.createRange(); r.selectNodeContents($('log')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Markiert, mit Strg+C kopieren'); });
+}
+function showSupport(html) {
+  $('support').innerHTML = html; $('support').hidden = !html;
+  const b = document.getElementById('copyDiag'); if (b) b.onclick = copyDiagnosis;
+}
 function diagnose() {
-  if (!chWrite) return;
+  if (!chWrite || diag.echoWait) return;
   log('', `Diagnose nach 6 s: ${diag.notifies} Meldungen, ${diag.reads} gelesen, ${diag.core} eindeutig lesbar, ${diag.unknown} unlesbar, Schreibart ${diag.writeMode || 'unbekannt'}`);
   let html = '';
   if (diag.notifies === 0) {
     html = `<div class="notice bad"><b>Der PAX sendet keine Daten.</b><span>Die Verbindung steht, aber es kommen keine Meldungen. Trennen, PAX einmal aus- und einschalten, schütteln bis blau, neu verbinden. Hilft das nicht: Chrome ganz schließen, im Terminal <code>sudo systemctl restart bluetooth</code>, erneut versuchen.</span></div>`;
   } else if (diag.core === 0 && diag.reads > 0) {
     html = `<div class="notice bad"><b>Die Seriennummer passt vermutlich nicht.</b><span>Der PAX antwortet, aber die Daten lassen sich mit „${serial}“ nicht entschlüsseln. Darum ignoriert er auch deine Befehle. Prüfe die 8 Zeichen auf der Rückseite genau, vor allem 0 und O, 1 und I, 5 und S, 8 und B.</span></div>`;
-  } else if (diag.writeMode === null) {
-    html = `<div class="notice warn"><b>Befehle kommen nicht an.</b><span>Lesen funktioniert, Schreiben nicht. Bitte kopiere das Protokoll unten und schick es mir.</span></div>`;
   }
-  if (html) { $('support').innerHTML = html; $('support').hidden = false; }
-  else log('rx', 'Diagnose: Seriennummer stimmt, Lesen und Schreiben funktionieren');
+  if (html) { showSupport(html); return; }
+  echoTest().then(ok => {
+    if (ok) { log('rx', 'Diagnose: Seriennummer stimmt, Lesen und Schreiben funktionieren'); showSupport(''); }
+    else { log('er', `Diagnose: Gegentest ohne Antwort. Befehle erreichen den PAX nicht (Schreibart ${diag.writeMode || 'unbekannt'})`); showSupport(writeHelpHTML()); }
+  });
 }
 async function drainWrite() {
   writing = true;
@@ -853,6 +891,7 @@ const STATES = {
 function handle(msg, plain) {
   const quiet = msg.key === 'actual' && diag.reads > 6;
   if (!quiet) log('rx', `← ${msg.key === 'unknown' ? 'Attribut ' + msg.type : msg.key}  ${PaxCore.bytesToHex(plain).replace(/(00)+$/, '')}`);
+  if (diag.echoWait && ECHO_TYPES.has(msg.type)) diag.echo = true;
   if (msg.key in st) st[msg.key] = msg.value;
   if (msg.key === 'heatingState') stats.onState(msg.value);
   if (msg.key === 'actual') stats.onTemp(msg.value);
@@ -1209,12 +1248,15 @@ async function applyProfile(withRamp) {
   ];
   const draw = done => v.innerHTML = items.map(it => {
     const val = st[it.k];
-    const state = !done ? 'wait' : (val != null && it.ok(val) ? 'ok' : 'bad');
-    return `<li class="${state}"><i>${state === 'ok' ? '✓' : state === 'bad' ? '✕' : '…'}</i><span>${it.label}${state === 'bad' ? ` <span class="muted">(Gerät meldet ${val == null ? 'nichts' : it.k === 'setPoint' ? fmt(val) : it.k === 'dynamicMode' ? (MODES[val]?.name || val) : Math.round(val * 100) + ' %'})</span>` : ''}</span></li>`;
+    const state = !done ? 'wait' : it.sent === false ? 'bad' : val == null ? 'wait' : it.ok(val) ? 'ok' : 'bad';
+    const note = !done ? '' : it.sent === false ? 'Senden fehlgeschlagen'
+      : val == null ? 'gesendet, PAX bestätigt nicht'
+      : it.ok(val) ? '' : `PAX meldet ${it.k === 'setPoint' ? fmt(val) : it.k === 'dynamicMode' ? (MODES[val]?.name || val) : Math.round(val * 100) + ' %'}`;
+    return `<li class="${state}"><i>${state === 'ok' ? '✓' : state === 'bad' ? '✕' : '?'}</i><span>${it.label}${note ? ` <span class="muted">(${note})</span>` : ''}</span></li>`;
   }).join('');
   items.forEach(it => st[it.k] = null);
   draw(false);
-  for (const it of items) await send(it.pkt, it.label);
+  for (const it of items) it.sent = await send(it.pkt, it.label);
   await new Promise(r => setTimeout(r, 700));
   await send(PaxCore.build.statusRequest([A.DYNAMIC_MODE, A.HEATER_SET_POINT, A.BRIGHTNESS, A.HAPTIC_MODE]), 'Profil prüfen');
   await new Promise(r => setTimeout(r, 2500));
@@ -1223,8 +1265,15 @@ async function applyProfile(withRamp) {
   if (allOk) {
     v.insertAdjacentHTML('beforeend', `<li class="ok"><i>✓</i><span><b>${withRamp ? 'Läuft.' : 'Fertig. Du kannst trennen und den PAX mitnehmen.'}</b></span></li>`);
     toast(withRamp ? 'Geschmacks-Treppe läuft' : 'Unterwegs-Profil gespeichert');
+  } else if (items.every(it => st[it.k] == null)) {
+    v.insertAdjacentHTML('beforeend', `<li class="bad"><i>!</i><span><b>Der PAX hat auf nichts geantwortet.</b> Die Befehle kommen sehr wahrscheinlich nicht an. Was hilft, steht oben im roten Kasten.</span></li>`);
+    if (diag.echo !== true) showSupport(writeHelpHTML());
   } else {
-    v.insertAdjacentHTML('beforeend', `<li class="bad"><i>!</i><span>Nicht alles wurde bestätigt. Nochmal versuchen, oder Protokoll prüfen.</span></li>`);
+    v.insertAdjacentHTML('beforeend', `<li class="bad"><i>!</i><span>Nicht alles wurde bestätigt. Nochmal versuchen.</span></li>`);
+  }
+  if (withRamp && items.every(it => st[it.k] == null)) {
+    v.insertAdjacentHTML('beforeend', `<li class="bad"><i>!</i><span>Treppe nicht gestartet, weil der PAX keine Befehle annimmt.</span></li>`);
+    return;
   }
   if (withRamp) {
     $('rStart').value = profile.temp; $('rEnd').value = profile.end; $('rStep').value = 4; $('rEvery').value = 120;
@@ -1250,9 +1299,20 @@ async function startRamp() {
   rampTimer = setInterval(tick, every); rampInfo(b, every);
 }
 let rampNext;
-function rampInfo(b, every) { rampNext = Date.now() + every; $('rInfo').textContent = `jetzt ${fmt(rampCur)}, Ziel ${fmt(b)}`; }
+function rampInfo(b, every) {
+  rampNext = Date.now() + every; rampGoal = b;
+  $('rInfo').textContent = `jetzt ${fmt(rampCur)}, Ziel ${fmt(b)}`;
+  if (homeRamp) { $('homeStatus').hidden = false; $('applyHome').textContent = 'Treppe stoppen'; }
+}
+let rampGoal = null;
+setInterval(() => {
+  if (!rampTimer || !homeRamp) return;
+  const left = Math.max(0, Math.round((rampNext - Date.now()) / 1000));
+  $('homeStatus').textContent = `Läuft: ${fmt(rampCur)} → ${fmt(rampGoal)}, nächster Schritt in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}, 1000);
 let homeRamp = false;
 function stopRamp() {
+  if ($('homeStatus')) { $('homeStatus').hidden = true; $('applyHome').textContent = 'Starten'; }
   // after the home ramp, put the stored blue level back to the on-the-go start value
   if (homeRamp) {
     homeRamp = false;
@@ -1304,7 +1364,7 @@ function wire() {
   ['pfTemp', 'pfEnd', 'pfBright', 'pfHapt', 'pfMode'].forEach(id => $(id).oninput = readProfileForm);
   $('pfReset').onclick = () => { profile = { ...PROFILE_DEFAULT }; store.set('profile', profile); renderProfiles(); };
   $('applyGo').onclick = () => applyProfile(false);
-  $('applyHome').onclick = () => applyProfile(true);
+  $('applyHome').onclick = () => { if (rampTimer && homeRamp) { stopRamp(); toast('Treppe gestoppt'); } else applyProfile(true); };
   $('rGo').onclick = startRamp; $('rStop').onclick = stopRamp;
   $('logClear').onclick = () => $('log').textContent = '';
   $('logCopy').onclick = async () => {
